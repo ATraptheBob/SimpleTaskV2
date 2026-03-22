@@ -68,7 +68,6 @@ struct InboxView: View {
                                         Spacer()
                                     }
                                     .padding(.vertical, 8)
-                                    // FIX: Background is now completely clear to match tasks
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
                                 }
@@ -92,14 +91,15 @@ struct InboxView: View {
                     .scrollContentBackground(.hidden)
                 }
                 
+                // LAYER 2: THE GLITCH-FREE MENU
                 ZStack {
+                    // The Bubble Background
                     VStack {
                         HStack {
                             Circle()
                                 .fill(isDarkMode ? Color(white: 0.12) : Color.white)
                                 .frame(width: 44, height: 44)
                                 .scaleEffect(isMenuOpen ? 50 : 0.001)
-                                // FIX: Adding opacity makes the bubble smoothly fade in and out
                                 .opacity(isMenuOpen ? 1 : 0)
                                 .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isMenuOpen)
                             Spacer()
@@ -110,19 +110,21 @@ struct InboxView: View {
                     }
                     .ignoresSafeArea(.all, edges: .bottom)
                     
-                    if isMenuOpen {
-                        VStack(alignment: .center, spacing: 50) {
-                            NavigationLink(destination: ArchiveView().toolbar(.hidden, for: .tabBar)) { MenuLink(title: "Archive", icon: "archivebox") }
-                                .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
-                            
-                            NavigationLink(destination: StatsView().toolbar(.hidden, for: .tabBar)) { MenuLink(title: "Statistics", icon: "chart.bar") }
-                                .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
-                            
-                            NavigationLink(destination: SettingsView().toolbar(.hidden, for: .tabBar)) { MenuLink(title: "Settings", icon: "gearshape") }
-                                .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
-                        }
-                        .transition(.opacity.animation(.easeInOut(duration: 0.2).delay(0.1)))
+                    // FIX: Replaced `if isMenuOpen` with opacity & scale modifiers.
+                    // This prevents SwiftUI from un-mounting the buttons, destroying the double-blink bug forever.
+                    VStack(alignment: .center, spacing: 50) {
+                        NavigationLink(destination: ArchiveView().toolbar(.hidden, for: .tabBar)) { MenuLink(title: "Archive", icon: "archivebox") }
+                            .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
+                        
+                        NavigationLink(destination: StatsView().toolbar(.hidden, for: .tabBar)) { MenuLink(title: "Statistics", icon: "chart.bar") }
+                            .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
+                        
+                        NavigationLink(destination: SettingsView().toolbar(.hidden, for: .tabBar)) { MenuLink(title: "Settings", icon: "gearshape") }
+                            .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
                     }
+                    .opacity(isMenuOpen ? 1 : 0)
+                    .scaleEffect(isMenuOpen ? 1 : 0.9)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.9), value: isMenuOpen)
                 }
                 .allowsHitTesting(isMenuOpen)
                 
@@ -191,7 +193,7 @@ struct InboxView: View {
 }
 
 // ---------------------------------------------------------
-// TASK ROW
+// TASK ROW & POPUP
 // ---------------------------------------------------------
 struct TaskRowView: View {
     @Environment(\.modelContext) private var modelContext
@@ -241,9 +243,6 @@ struct TaskRowView: View {
     }
 }
 
-// ---------------------------------------------------------
-// THE HALF-SHEET POPUP
-// ---------------------------------------------------------
 struct TaskDetailPopup: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var task: TaskItem

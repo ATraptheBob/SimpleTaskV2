@@ -46,7 +46,7 @@ final class HabitItem {
     var title: String
     var streak: Int
     var lastCompletedDate: Date?
-    var frequency: RepeatInterval // Now supports Daily, Weekly, Monthly
+    var frequency: RepeatInterval
     
     init(title: String, streak: Int = 0, frequency: RepeatInterval = .daily) {
         self.title = title

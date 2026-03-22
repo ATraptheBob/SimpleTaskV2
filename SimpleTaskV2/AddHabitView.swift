@@ -6,8 +6,8 @@ struct AddHabitView: View {
     @Environment(\.dismiss) private var dismiss
     
     @State private var title = ""
+    @State private var frequency: RepeatInterval = .daily
     
-    // If this is populated, the view knows you are editing instead of creating
     var habitToEdit: HabitItem?
     
     var body: some View {
@@ -19,6 +19,14 @@ struct AddHabitView: View {
                     Section(header: Text("Habit Details").foregroundColor(.gray)) {
                         TextField("Habit Title", text: $title)
                             .foregroundColor(.orange)
+                        
+                        Picker("Frequency", selection: $frequency) {
+                            ForEach(RepeatInterval.allCases, id: \.self) { interval in
+                                if interval != .none {
+                                    Text(interval.rawValue.capitalized).tag(interval)
+                                }
+                            }
+                        }
                     }
                     .listRowBackground(Color(white: 0.12))
                 }
@@ -28,16 +36,16 @@ struct AddHabitView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
-                        .foregroundColor(.red)
+                    Button("Cancel") { dismiss() }.foregroundColor(.red)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
                         if let existingHabit = habitToEdit {
-                            existingHabit.title = title // Update existing
+                            existingHabit.title = title
+                            existingHabit.frequency = frequency
                         } else {
-                            let newHabit = HabitItem(title: title)
-                            modelContext.insert(newHabit) // Save new
+                            let newHabit = HabitItem(title: title, streak: 0, frequency: frequency)
+                            modelContext.insert(newHabit)
                         }
                         dismiss()
                     }
@@ -46,9 +54,9 @@ struct AddHabitView: View {
                 }
             }
             .onAppear {
-                // Auto-fill the text field if you are editing
                 if let existingHabit = habitToEdit {
                     title = existingHabit.title
+                    frequency = existingHabit.frequency
                 }
             }
         }

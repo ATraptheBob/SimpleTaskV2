@@ -4,36 +4,15 @@ import SwiftData
 struct StatsView: View {
     @Query private var allTasks: [TaskItem]
     @Query private var habits: [HabitItem]
+    @Query private var sessions: [PomodoroSession]
     
-    var totalCompletedTasks: Int {
-        allTasks.filter { $0.isCompleted }.count
-    }
+    var totalCompletedTasks: Int { allTasks.filter { $0.isCompleted }.count }
+    var bestStreak: Int { habits.map { $0.streak }.max() ?? 0 }
     
-    var bestStreak: Int {
-        habits.map { $0.streak }.max() ?? 0
-    }
-
-    // --- Heatmap Logic ---
-    let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
-    
-    // Generates an array of the last 35 dates
-    var pastDays: [Date] {
-        let today = Calendar.current.startOfDay(for: Date())
-        return (0..<35).reversed().compactMap {
-            Calendar.current.date(byAdding: .day, value: -$0, to: today)
-        }
-    }
-    
-    // Groups completed tasks by their specific date
-    var completionMap: [Date: Int] {
-        var map: [Date: Int] = [:]
-        for task in allTasks where task.isCompleted {
-            if let compDate = task.completionDate {
-                let startOfDay = Calendar.current.startOfDay(for: compDate)
-                map[startOfDay, default: 0] += 1
-            }
-        }
-        return map
+    // Calculates total focus hours from Pomodoro
+    var totalFocusHours: Double {
+        let totalMinutes = sessions.reduce(0) { $0 + $1.durationMinutes }
+        return Double(totalMinutes) / 60.0
     }
 
     var body: some View {
@@ -42,66 +21,65 @@ struct StatsView: View {
                 Color(white: 0.05).ignoresSafeArea()
                 
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: 20) {
                         
-                        // Top Stats
-                        VStack(spacing: 16) {
-                            StatBox(title: "Tasks Conquered", value: "\(totalCompletedTasks)", color: .pink)
-                            StatBox(title: "Best Habit Streak", value: "\(bestStreak) 🔥", color: .orange)
-                            StatBox(title: "Active Habits", value: "\(habits.count)", color: .blue)
-                        }
-                        
-                        // The New Heatmap
-                        VStack(alignment: .leading) {
-                            Text("Activity (Last 35 Days)")
+                        // Hero Metric: Focus Time
+                        VStack {
+                            Text(String(format: "%.1f", totalFocusHours))
+                                .font(.system(size: 72, weight: .bold, design: .rounded))
+                                .foregroundColor(.pink)
+                            Text("Hours Focused")
                                 .font(.headline)
                                 .foregroundColor(.gray)
-                                .padding(.bottom, 8)
-                            
-                            LazyVGrid(columns: columns, spacing: 6) {
-                                ForEach(pastDays, id: \.self) { date in
-                                    let taskCount = completionMap[date] ?? 0
-                                    
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(heatmapColor(for: taskCount))
-                                        .aspectRatio(1.0, contentMode: .fit)
-                                }
-                            }
                         }
-                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 30)
                         .background(Color(white: 0.1))
-                        .cornerRadius(12)
+                        .cornerRadius(20)
+                        
+                        // Secondary Metrics Grid
+                        HStack(spacing: 20) {
+                            SmallStatBox(title: "Tasks Done", value: "\(totalCompletedTasks)", icon: "checkmark.square.fill", color: .green)
+                            SmallStatBox(title: "Best Streak", value: "\(bestStreak)", icon: "flame.fill", color: .orange)
+                        }
+                        
+                        // Habit Health
+                        VStack(alignment: .leading) {
+                            Text("Habit Engine").font(.headline).foregroundColor(.gray)
+                            HStack {
+                                Text("\(habits.count) Active Habits")
+                                Spacer()
+                                Image(systemName: "engine.combustion.fill").foregroundColor(.blue)
+                            }
+                            .padding()
+                            .background(Color(white: 0.1))
+                            .cornerRadius(12)
+                        }
+                        .padding(.top, 10)
                     }
                     .padding()
                 }
             }
-            .navigationTitle("Statistics")
+            .navigationTitle("Analytics")
         }
-    }
-    
-    // Changes the opacity based on how much you got done
-    private func heatmapColor(for count: Int) -> Color {
-        if count == 0 { return Color(white: 0.15) } // Empty day
-        if count < 3  { return Color.pink.opacity(0.4) } // Light day
-        if count < 6  { return Color.pink.opacity(0.7) } // Medium day
-        return Color.pink // Highly productive day
     }
 }
 
-// Ensure you keep your StatBox struct here
-struct StatBox: View {
+struct SmallStatBox: View {
     let title: String
     let value: String
+    let icon: String
     let color: Color
     
     var body: some View {
-        HStack {
-            Text(title).foregroundColor(.gray)
-            Spacer()
-            Text(value).font(.title).bold().foregroundColor(color)
+        VStack(alignment: .leading, spacing: 12) {
+            Image(systemName: icon).foregroundColor(color).font(.title2)
+            Text(value).font(.title).bold().foregroundColor(.white)
+            Text(title).font(.caption).foregroundColor(.gray)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color(white: 0.1))
-        .cornerRadius(12)
+        .cornerRadius(16)
     }
 }

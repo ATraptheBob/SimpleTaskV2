@@ -4,16 +4,25 @@ import SwiftData
 struct InboxView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \TaskItem.dueDate, order: .forward) private var allTasks: [TaskItem]
+    @Query private var allHabits: [HabitItem]
+    
     @State private var showingAddSheet = false
 
-    // The Magic Filter: Keeps incomplete tasks + tasks completed within the last 24h
     var activeTasks: [TaskItem] {
-        allTasks.filter { task in
-            if !task.isCompleted { return true }
-            if let compDate = task.completionDate {
-                return Date().timeIntervalSince(compDate) < 86400
+        allTasks.filter { !$0.isCompleted || ( $0.completionDate != nil && Date().timeIntervalSince($0.completionDate!) < 86400) }
+    }
+    
+    // Finds habits that haven't been completed for their required time period
+    var dueHabits: [HabitItem] {
+        allHabits.filter { habit in
+            guard let lastDate = habit.lastCompletedDate else { return true }
+            let cal = Calendar.current
+            switch habit.frequency {
+            case .daily: return !cal.isDateInToday(lastDate)
+            case .weekly: return !cal.isDate(lastDate, equalTo: Date(), toGranularity: .weekOfYear)
+            case .monthly: return !cal.isDate(lastDate, equalTo: Date(), toGranularity: .month)
+            case .none: return true
             }
-            return true
         }
     }
 
@@ -21,25 +30,30 @@ struct InboxView: View {
         NavigationStack {
             ZStack {
                 Color(white: 0.05).ignoresSafeArea()
+                
                 List {
-                    ForEach(activeTasks) { task in
-                        HStack {
-                            Image(systemName: task.isCompleted ? "checkmark.square.fill" : "square")
-                                .foregroundColor(task.isCompleted ? .gray : .pink)
-                                .onTapGesture { toggleTask(task) }
-                            
-                            VStack(alignment: .leading) {
-                                Text(task.title)
-                                    .foregroundColor(task.isCompleted ? .gray : .white)
-                                    .strikethrough(task.isCompleted)
-                                Text(task.dueDate.formatted(date: .abbreviated, time: .shortened))
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
+                    if !dueHabits.isEmpty {
+                        Section(header: Text("Due Habits").foregroundColor(.orange)) {
+                            ForEach(dueHabits) { habit in
+                                HStack {
+                                    Text(habit.title).foregroundColor(.white)
+                                    Spacer()
+                                    Image(systemName: "circle.dashed").foregroundColor(.orange)
+                                }
+                                .listRowBackground(Color(white: 0.1))
                             }
                         }
-                        .listRowBackground(Color.clear)
                     }
-                    .onDelete(perform: deleteItems)
+                    
+                    Section(header: Text("Tasks").foregroundColor(.pink)) {
+                        ForEach(activeTasks) { task in
+                            TaskRow(task: task)
+                                .listRowBackground(Color.clear)
+                        }
+                        .onDelete { indexSet in
+                            for i in indexSet { modelContext.delete(activeTasks[i]) }
+                        }
+                    }
                 }
                 .listStyle(.plain)
             }
@@ -49,39 +63,69 @@ struct InboxView: View {
                     Image(systemName: "plus")
                 }
             }
-            .sheet(isPresented: $showingAddSheet) {
-                AddTaskView() // Use your existing AddTaskView here
-            }
+            .sheet(isPresented: $showingAddSheet) { AddTaskView() }
         }
     }
+}
 
-    private func toggleTask(_ task: TaskItem) {
-        withAnimation {
-            if task.isCompleted {
-                task.isCompleted = false
-                task.completionDate = nil
-            } else {
-                if task.repeatInterval != .none {
-                    // Reschedule logic
-                    var components = DateComponents()
-                    switch task.repeatInterval {
-                    case .daily: components.day = 1
-                    case .weekly: components.day = 7
-                    case .monthly: components.month = 1
-                    case .none: break
+// Handles the nested subtask UI
+struct TaskRow: View {
+    @Bindable var task: TaskItem
+    @State private var isExpanded = false
+    @State private var newSubtaskTitle = ""
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            HStack {
+                Image(systemName: task.isCompleted ? "checkmark.square.fill" : "square")
+                    .foregroundColor(task.isCompleted ? .gray : .pink)
+                    .onTapGesture {
+                        withAnimation { task.isCompleted.toggle(); task.completionDate = task.isCompleted ? Date() : nil }
                     }
-                    if let nextDate = Calendar.current.date(byAdding: components, to: task.dueDate) {
-                        task.dueDate = nextDate
+                
+                Text(task.title)
+                    .foregroundColor(task.isCompleted ? .gray : .white)
+                    .strikethrough(task.isCompleted)
+                
+                Spacer()
+                
+                // Expand button for nested tasks
+                Button(action: { withAnimation { isExpanded.toggle() } }) {
+                    Image(systemName: "chevron.down")
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                        .foregroundColor(.gray)
+                }
+            }
+            
+            if isExpanded {
+                VStack(alignment: .leading) {
+                    ForEach(task.subtasks) { subtask in
+                        HStack {
+                            Image(systemName: subtask.isCompleted ? "checkmark.circle" : "circle")
+                                .onTapGesture { subtask.isCompleted.toggle() }
+                            Text(subtask.title).strikethrough(subtask.isCompleted)
+                        }
+                        .foregroundColor(.gray)
+                        .padding(.leading, 30)
+                        .padding(.top, 4)
                     }
-                } else {
-                    task.isCompleted = true
-                    task.completionDate = Date() // Timestamps the completion
+                    
+                    // Quick add subtask inline
+                    HStack {
+                        Image(systemName: "arrow.turn.down.right").foregroundColor(.gray)
+                        TextField("Add step...", text: $newSubtaskTitle)
+                            .onSubmit {
+                                if !newSubtaskTitle.isEmpty {
+                                    task.subtasks.append(SubtaskItem(title: newSubtaskTitle))
+                                    newSubtaskTitle = ""
+                                }
+                            }
+                    }
+                    .padding(.leading, 30)
+                    .padding(.top, 4)
                 }
             }
         }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        for index in offsets { modelContext.delete(activeTasks[index]) }
+        .padding(.vertical, 4)
     }
 }

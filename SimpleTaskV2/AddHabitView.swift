@@ -4,6 +4,7 @@ import SwiftData
 struct AddHabitView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("isDarkMode") private var isDarkMode = true
     
     @State private var title = ""
     @State private var frequency: RepeatInterval = .daily
@@ -13,7 +14,7 @@ struct AddHabitView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(white: 0.08).ignoresSafeArea()
+                (isDarkMode ? Color(white: 0.08) : Color(white: 0.95)).ignoresSafeArea()
                 
                 Form {
                     Section(header: Text("Habit Details").foregroundColor(.gray)) {
@@ -28,7 +29,7 @@ struct AddHabitView: View {
                             }
                         }
                     }
-                    .listRowBackground(Color(white: 0.12))
+                    .listRowBackground(isDarkMode ? Color(white: 0.12) : Color.white)
                 }
                 .scrollContentBackground(.hidden)
             }
@@ -40,14 +41,15 @@ struct AddHabitView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
+                        HapticAndSoundManager.shared.triggerHapticSuccess()
                         if let existingHabit = habitToEdit {
                             existingHabit.title = title
                             existingHabit.frequency = frequency
                         } else {
-                            // FIX 1: Removed 'streak: 0' since the model calculates it automatically now
                             let newHabit = HabitItem(title: title, frequency: frequency)
                             modelContext.insert(newHabit)
                         }
+                        try? modelContext.save()
                         dismiss()
                     }
                     .foregroundColor(.pink)
@@ -57,7 +59,6 @@ struct AddHabitView: View {
             .onAppear {
                 if let existingHabit = habitToEdit {
                     title = existingHabit.title
-                    // FIX 2: Added '?? .daily' to safely unwrap the optional frequency
                     frequency = existingHabit.frequency ?? .daily
                 }
             }

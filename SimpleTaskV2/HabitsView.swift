@@ -4,6 +4,7 @@ import SwiftData
 struct HabitsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var habits: [HabitItem]
+    @AppStorage("isDarkMode") private var isDarkMode = true
     
     @State private var showingAddSheet = false
     @State private var habitToEdit: HabitItem?
@@ -15,14 +16,15 @@ struct HabitsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(white: 0.05).ignoresSafeArea()
+                (isDarkMode ? Color(white: 0.05) : Color(white: 0.95)).ignoresSafeArea()
                 
                 List {
-                    HabitSection(title: "Daily", habits: dailyHabits, editAction: { habitToEdit = $0 })
-                    HabitSection(title: "Weekly", habits: weeklyHabits, editAction: { habitToEdit = $0 })
-                    HabitSection(title: "Monthly", habits: monthlyHabits, editAction: { habitToEdit = $0 })
+                    HabitSection(title: "Daily", habits: dailyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
+                    HabitSection(title: "Weekly", habits: weeklyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
+                    HabitSection(title: "Monthly", habits: monthlyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
                 }
                 .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
             .navigationTitle("Habits")
             .toolbar {
@@ -36,11 +38,12 @@ struct HabitsView: View {
     }
 }
 
-// Reusable logic section
 struct HabitSection: View {
     let title: String
     let habits: [HabitItem]
     let editAction: (HabitItem) -> Void
+    let isDarkMode: Bool
+    private let hapticSound = HapticAndSoundManager.shared
     
     var body: some View {
         if !habits.isEmpty {
@@ -48,7 +51,7 @@ struct HabitSection: View {
                 ForEach(habits) { habit in
                     HStack {
                         VStack(alignment: .leading) {
-                            Text(habit.title).foregroundColor(.white)
+                            Text(habit.title).foregroundColor(isDarkMode ? .white : .black)
                             Text("Streak: \(habit.streak) 🔥").font(.caption).foregroundColor(.orange)
                         }
                         Spacer()
@@ -67,7 +70,6 @@ struct HabitSection: View {
         }
     }
     
-    // Evaluates completion by searching the completionDates array
     private func isCompleted(_ habit: HabitItem) -> Bool {
         let calendar = Calendar.current
         return habit.completionDates.contains { date in
@@ -80,19 +82,19 @@ struct HabitSection: View {
         }
     }
     
-    // Adds or removes completion dates
     private func toggleHabit(_ habit: HabitItem) {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         
+        hapticSound.triggerHapticSelection()
+        
         withAnimation(.spring()) {
             if isCompleted(habit) {
-                // Remove today's completion (unchecking)
                 habit.completionDates.removeAll { date in
                     calendar.isDate(date, equalTo: today, toGranularity: .day)
                 }
             } else {
-                // Add new completion
+                hapticSound.playSuccessSound()
                 habit.completionDates.append(Date())
             }
         }

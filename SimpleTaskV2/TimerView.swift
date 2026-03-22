@@ -4,9 +4,8 @@ import Combine
 
 struct TimerView: View {
     @Environment(\.modelContext) private var modelContext
-    
-    // Reads the duration directly from your SettingsView
     @AppStorage("pomodoroDuration") private var sessionLength = 25
+    @AppStorage("isDarkMode") private var isDarkMode = true
     
     @State private var timeRemaining = 25 * 60
     @State private var timerRunning = false
@@ -16,7 +15,7 @@ struct TimerView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(white: 0.05).ignoresSafeArea()
+                (isDarkMode ? Color(white: 0.05) : Color(white: 0.95)).ignoresSafeArea()
                 
                 VStack(spacing: 40) {
                     ZStack {
@@ -34,7 +33,7 @@ struct TimerView: View {
                         
                         Text(timeString(time: timeRemaining))
                             .font(.system(size: 60, weight: .bold, design: .monospaced))
-                            .foregroundColor(.white)
+                            .foregroundColor(isDarkMode ? .white : .black)
                     }
                     .padding(40)
                     
@@ -45,7 +44,10 @@ struct TimerView: View {
                                 .foregroundColor(.gray)
                         }
                         
-                        Button(action: { timerRunning.toggle() }) {
+                        Button(action: {
+                            HapticAndSoundManager.shared.triggerHapticSelection()
+                            timerRunning.toggle()
+                        }) {
                             Image(systemName: timerRunning ? "pause.circle.fill" : "play.circle.fill")
                                 .font(.system(size: 64))
                                 .foregroundColor(.pink)
@@ -54,7 +56,7 @@ struct TimerView: View {
                 }
             }
             .navigationTitle("Focus")
-            .onAppear { resetTimer() } // Always updates to match Settings when opened
+            .onAppear { resetTimer() }
             .onReceive(timer) { _ in
                 if timerRunning && timeRemaining > 0 {
                     timeRemaining -= 1
@@ -78,8 +80,10 @@ struct TimerView: View {
     
     private func finishSession() {
         timerRunning = false
+        HapticAndSoundManager.shared.playCompleteSound()
         let session = PomodoroSession(durationMinutes: sessionLength)
         modelContext.insert(session)
+        try? modelContext.save()
         resetTimer()
     }
 }

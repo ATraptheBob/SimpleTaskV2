@@ -5,11 +5,11 @@ struct StatsView: View {
     @Query private var allTasks: [TaskItem]
     @Query private var habits: [HabitItem]
     @Query private var sessions: [PomodoroSession]
+    @AppStorage("isDarkMode") private var isDarkMode = true
     
     var totalCompletedTasks: Int { allTasks.filter { $0.isCompleted }.count }
     var bestStreak: Int { habits.map { $0.streak }.max() ?? 0 }
     
-    // Calculates total focus hours from Pomodoro
     var totalFocusHours: Double {
         let totalMinutes = sessions.reduce(0) { $0 + $1.durationMinutes }
         return Double(totalMinutes) / 60.0
@@ -18,12 +18,11 @@ struct StatsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(white: 0.05).ignoresSafeArea()
+                (isDarkMode ? Color(white: 0.05) : Color(white: 0.95)).ignoresSafeArea()
                 
                 ScrollView {
                     VStack(spacing: 20) {
                         
-                        // Hero Metric: Focus Time
                         VStack {
                             Text(String(format: "%.1f", totalFocusHours))
                                 .font(.system(size: 72, weight: .bold, design: .rounded))
@@ -34,25 +33,23 @@ struct StatsView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 30)
-                        .background(Color(white: 0.1))
+                        .background(isDarkMode ? Color(white: 0.1) : Color.white)
                         .cornerRadius(20)
                         
-                        // Secondary Metrics Grid
-                        HStack(spacing: 20) {
-                            SmallStatBox(title: "Tasks Done", value: "\(totalCompletedTasks)", icon: "checkmark.square.fill", color: .green)
-                            SmallStatBox(title: "Best Streak", value: "\(bestStreak)", icon: "flame.fill", color: .orange)
+                        HStack(spacing: 16) {
+                            SmallStatBox(title: "Tasks Done", value: "\(totalCompletedTasks)", icon: "checkmark.square.fill", color: .green, isDarkMode: isDarkMode)
+                            SmallStatBox(title: "Best Streak", value: "\(bestStreak)", icon: "flame.fill", color: .orange, isDarkMode: isDarkMode)
                         }
                         
-                        // Habit Health
                         VStack(alignment: .leading) {
                             Text("Habit Engine").font(.headline).foregroundColor(.gray)
                             HStack {
-                                Text("\(habits.count) Active Habits")
+                                Text("\(habits.count) Active Habits").foregroundColor(isDarkMode ? .white : .black)
                                 Spacer()
                                 Image(systemName: "engine.combustion.fill").foregroundColor(.blue)
                             }
                             .padding()
-                            .background(Color(white: 0.1))
+                            .background(isDarkMode ? Color(white: 0.1) : Color.white)
                             .cornerRadius(12)
                         }
                         .padding(.top, 10)
@@ -70,16 +67,17 @@ struct SmallStatBox: View {
     let value: String
     let icon: String
     let color: Color
+    let isDarkMode: Bool
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Image(systemName: icon).foregroundColor(color).font(.title2)
-            Text(value).font(.title).bold().foregroundColor(.white)
+            Text(value).font(.title).bold().foregroundColor(isDarkMode ? .white : .black)
             Text(title).font(.caption).foregroundColor(.gray)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(Color(white: 0.1))
+        .background(isDarkMode ? Color(white: 0.1) : Color.white)
         .cornerRadius(16)
     }
 }

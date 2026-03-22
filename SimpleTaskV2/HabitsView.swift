@@ -49,19 +49,27 @@ struct HabitSection: View {
         if !habits.isEmpty {
             Section(header: Text(title).foregroundColor(.pink).bold()) {
                 ForEach(habits) { habit in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(habit.title).foregroundColor(isDarkMode ? .white : .black)
-                            Text("Streak: \(habit.streak) 🔥").font(.caption).foregroundColor(.orange)
-                        }
-                        Spacer()
+                    // FIX: UI is now identical to TaskRowView
+                    HStack(spacing: 12) {
                         Button(action: { toggleHabit(habit) }) {
                             Image(systemName: isCompleted(habit) ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(isCompleted(habit) ? .green : .gray)
+                                .foregroundColor(isCompleted(habit) ? .gray : .orange)
                                 .font(.title2)
-                        }.buttonStyle(.plain)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        VStack(alignment: .leading) {
+                            Text(habit.title)
+                                .foregroundColor(isCompleted(habit) ? .gray : (isDarkMode ? .white : .black))
+                                .strikethrough(isCompleted(habit))
+                            Text("Streak: \(habit.streak) 🔥").font(.caption).foregroundColor(.orange)
+                        }
+                        
+                        Spacer()
                     }
+                    .padding(.vertical, 8)
                     .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                     .swipeActions(edge: .trailing) {
                         Button { editAction(habit) } label: { Label("Edit", systemImage: "pencil") }.tint(.blue)
                     }
@@ -88,7 +96,7 @@ struct HabitSection: View {
         
         hapticSound.triggerHapticSelection()
         
-        withAnimation(.spring()) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
             if isCompleted(habit) {
                 habit.completionDates.removeAll { date in
                     calendar.isDate(date, equalTo: today, toGranularity: .day)

@@ -54,7 +54,6 @@ struct InboxView: View {
                         if !dueHabits.isEmpty {
                             Section(header: Text("Due Habits").foregroundColor(.orange)) {
                                 ForEach(dueHabits) { habit in
-                                    // FIX: Habit UI now structurally identical to Task UI
                                     HStack(spacing: 12) {
                                         Button(action: { toggleHabit(habit) }) {
                                             Image(systemName: "circle")
@@ -69,7 +68,8 @@ struct InboxView: View {
                                         Spacer()
                                     }
                                     .padding(.vertical, 8)
-                                    .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
+                                    // FIX: Background is now completely clear to match tasks
+                                    .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
                                 }
                             }
@@ -99,6 +99,8 @@ struct InboxView: View {
                                 .fill(isDarkMode ? Color(white: 0.12) : Color.white)
                                 .frame(width: 44, height: 44)
                                 .scaleEffect(isMenuOpen ? 50 : 0.001)
+                                // FIX: Adding opacity makes the bubble smoothly fade in and out
+                                .opacity(isMenuOpen ? 1 : 0)
                                 .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isMenuOpen)
                             Spacer()
                         }
@@ -189,7 +191,7 @@ struct InboxView: View {
 }
 
 // ---------------------------------------------------------
-// TASK ROW (Unified Icons)
+// TASK ROW
 // ---------------------------------------------------------
 struct TaskRowView: View {
     @Environment(\.modelContext) private var modelContext
@@ -210,7 +212,6 @@ struct TaskRowView: View {
                 }
                 if task.isCompleted { hapticSound.playCompleteSound() }
             }) {
-                // FIX: Standardized to circles to match Habits and Subtasks
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundColor(task.isCompleted ? .gray : .pink)
                     .font(.title2)

@@ -15,12 +15,15 @@ struct SimpleTaskV2App: App {
                 ArchiveView()
                     .tabItem { Label("Archive", systemImage: "archivebox.fill") }
                 
+                TimerView()
+                    .tabItem { Label("Focus", systemImage: "timer") }
+                
                 StatsView()
                     .tabItem { Label("Stats", systemImage: "chart.bar.fill") }
             }
             .tint(.pink) // Minimalist color accent
             .preferredColorScheme(.dark)
         }
-        .modelContainer(for: [TaskItem.self, HabitItem.self])
+        .modelContainer(for: [TaskItem.self, SubtaskItem.self, HabitItem.self, PomodoroSession.self])
     }
 }

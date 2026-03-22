@@ -10,15 +10,17 @@ enum RepeatInterval: String, Codable, CaseIterable {
 
 @Model
 final class TaskItem {
-    @Attribute(.unique) var id: UUID
+    @Attribute(.unique) var id: UUID = UUID()
     var title: String
     var dueDate: Date
     var isCompleted: Bool
-    var completionDate: Date? // Tracks exactly when you checked it off
+    var completionDate: Date?
     var repeatInterval: RepeatInterval
     
-    init(id: UUID = UUID(), title: String, dueDate: Date = .now, isCompleted: Bool = false, repeatInterval: RepeatInterval = .none) {
-        self.id = id
+    // The new Subtask relationship. 'Cascade' means if you delete the main task, the subtasks delete too.
+    @Relationship(deleteRule: .cascade) var subtasks: [SubtaskItem] = []
+    
+    init(title: String, dueDate: Date = .now, isCompleted: Bool = false, repeatInterval: RepeatInterval = .none) {
         self.title = title
         self.dueDate = dueDate
         self.isCompleted = isCompleted
@@ -27,15 +29,41 @@ final class TaskItem {
 }
 
 @Model
+final class SubtaskItem {
+    @Attribute(.unique) var id: UUID = UUID()
+    var title: String
+    var isCompleted: Bool
+    
+    init(title: String, isCompleted: Bool = false) {
+        self.title = title
+        self.isCompleted = isCompleted
+    }
+}
+
+@Model
 final class HabitItem {
-    @Attribute(.unique) var id: UUID
+    @Attribute(.unique) var id: UUID = UUID()
     var title: String
     var streak: Int
     var lastCompletedDate: Date?
+    var frequency: RepeatInterval // Now supports Daily, Weekly, Monthly
     
-    init(id: UUID = UUID(), title: String, streak: Int = 0) {
-        self.id = id
+    init(title: String, streak: Int = 0, frequency: RepeatInterval = .daily) {
         self.title = title
         self.streak = streak
+        self.frequency = frequency
+    }
+}
+
+// New model to feed your Statistics screen
+@Model
+final class PomodoroSession {
+    @Attribute(.unique) var id: UUID = UUID()
+    var date: Date
+    var durationMinutes: Int
+    
+    init(durationMinutes: Int, date: Date = .now) {
+        self.durationMinutes = durationMinutes
+        self.date = date
     }
 }

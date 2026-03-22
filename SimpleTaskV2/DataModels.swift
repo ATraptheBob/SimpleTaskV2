@@ -67,9 +67,11 @@ final class PomodoroSession {
     @Attribute(.unique) var id: UUID = UUID()
     var date: Date
     var durationMinutes: Int
+    var subject: String // NEW: Tracks what you were studying
     
-    init(durationMinutes: Int, date: Date = .now) {
+    init(durationMinutes: Int, subject: String = "General", date: Date = .now) {
         self.durationMinutes = durationMinutes
+        self.subject = subject
         self.date = date
     }
 }

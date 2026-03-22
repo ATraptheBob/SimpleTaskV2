@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
+import WidgetKit
 
 struct InboxView: View {
     @Environment(\.modelContext) private var modelContext
@@ -182,6 +183,7 @@ struct InboxView: View {
         withAnimation {
             habit.completionDates.append(Date())
             try? modelContext.save()
+            WidgetCenter.shared.reloadAllTimelines()
         }
     }
     
@@ -211,6 +213,7 @@ struct TaskRowView: View {
                     task.isCompleted.toggle()
                     task.completionDate = task.isCompleted ? Date() : nil
                     try? modelContext.save()
+                    WidgetCenter.shared.reloadAllTimelines()
                 }
                 if task.isCompleted { hapticSound.playCompleteSound() }
             }) {
@@ -285,6 +288,7 @@ struct TaskDetailPopup: View {
                                         withAnimation { subtask.isCompleted.toggle() }
                                         if subtask.isCompleted { hapticSound.playSuccessSound() }
                                         try? modelContext.save()
+                                        WidgetCenter.shared.reloadAllTimelines()
                                     }
                                 Text(subtask.title)
                                     .strikethrough(subtask.isCompleted)
@@ -303,6 +307,7 @@ struct TaskDetailPopup: View {
                                             task.subtasks.append(SubtaskItem(title: newSubtaskTitle))
                                             newSubtaskTitle = ""
                                             try? modelContext.save()
+                                            WidgetCenter.shared.reloadAllTimelines()
                                         }
                                     }
                                 }
@@ -339,6 +344,7 @@ struct TaskDetailPopup: View {
                                         withAnimation {
                                             task.imageData = nil
                                             try? modelContext.save()
+                                            WidgetCenter.shared.reloadAllTimelines()
                                         }
                                     } label: { Label("Remove Image", systemImage: "trash") }
                                 }
@@ -359,6 +365,7 @@ struct TaskDetailPopup: View {
                                         withAnimation {
                                             task.imageData = data
                                             try? modelContext.save()
+                                            WidgetCenter.shared.reloadAllTimelines()
                                         }
                                     }
                                 }

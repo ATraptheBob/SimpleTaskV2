@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import WidgetKit
 
 struct HabitsView: View {
     @Environment(\.modelContext) private var modelContext

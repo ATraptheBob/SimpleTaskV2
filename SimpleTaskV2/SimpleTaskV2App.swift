@@ -5,9 +5,6 @@ import SwiftData
 struct SimpleTaskV2App: App {
     let container: ModelContainer
     
-    // Listens to the Dark Mode toggle from SettingsView
-    @AppStorage("isDarkMode") private var isDarkMode = true
-    
     init() {
         do {
             let schema = Schema([
@@ -16,9 +13,16 @@ struct SimpleTaskV2App: App {
                 HabitItem.self,
                 PomodoroSession.self
             ])
-            let config = ModelConfiguration()
+            
+            // Shared folder for Widgets and App access
+            guard let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2") else {
+                fatalError("Could not find App Group folder.")
+            }
+            
+            let databaseURL = sharedFolderURL.appendingPathComponent("SimpleTaskDatabase.sqlite")
+            let config = ModelConfiguration(url: databaseURL)
+            
             container = try ModelContainer(for: schema, configurations: config)
-            container.mainContext.autosaveEnabled = false
         } catch {
             fatalError("Could not configure SwiftData: \(error)")
         }
@@ -27,18 +31,24 @@ struct SimpleTaskV2App: App {
     var body: some Scene {
         WindowGroup {
             TabView {
+                // Main View (Contains the Hamburger Menu for Archive/Stats/Settings)
                 InboxView()
-                    .tabItem { Label("Inbox", systemImage: "tray.fill") }
+                    .tabItem {
+                        Label("Inbox", systemImage: "tray.fill")
+                    }
                 
                 HabitsView()
-                    .tabItem { Label("Habits", systemImage: "flame.fill") }
+                    .tabItem {
+                        Label("Habits", systemImage: "flame.fill")
+                    }
                 
                 TimerView()
-                    .tabItem { Label("Focus", systemImage: "timer") }
+                    .tabItem {
+                        Label("Focus", systemImage: "timer")
+                    }
             }
             .tint(.pink)
-            // THE FIX: Forces the entire app to respect your custom setting
-            .preferredColorScheme(isDarkMode ? .dark : .light)
+            .preferredColorScheme(.dark)
         }
         .modelContainer(container)
     }

@@ -87,12 +87,11 @@ struct InboxView: View {
                 
                 // LAYER 2: THE PERFECTLY CENTERED BUBBLE MENU
                 ZStack {
-                    // FIX: This layout perfectly mirrors the Hamburger Button's layout, ensuring 100% alignment.
                     VStack {
                         HStack {
                             Circle()
                                 .fill(isDarkMode ? Color(white: 0.12) : Color.white)
-                                .frame(width: 44, height: 44) // Exact size of the button
+                                .frame(width: 44, height: 44)
                                 .scaleEffect(isMenuOpen ? 50 : 0.001)
                                 .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isMenuOpen)
                             Spacer()
@@ -105,13 +104,14 @@ struct InboxView: View {
                     
                     if isMenuOpen {
                         VStack(alignment: .center, spacing: 50) {
-                            NavigationLink(destination: ArchiveView()) { MenuLink(title: "Archive", icon: "archivebox") }
+                            // FIX: Forces the TabBar to stay hidden when navigating into these views
+                            NavigationLink(destination: ArchiveView().toolbar(.hidden, for: .tabBar)) { MenuLink(title: "Archive", icon: "archivebox") }
                                 .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
                             
-                            NavigationLink(destination: StatsView()) { MenuLink(title: "Statistics", icon: "chart.bar") }
+                            NavigationLink(destination: StatsView().toolbar(.hidden, for: .tabBar)) { MenuLink(title: "Statistics", icon: "chart.bar") }
                                 .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
                             
-                            NavigationLink(destination: SettingsView()) { MenuLink(title: "Settings", icon: "gearshape") }
+                            NavigationLink(destination: SettingsView().toolbar(.hidden, for: .tabBar)) { MenuLink(title: "Settings", icon: "gearshape") }
                                 .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
                         }
                         .transition(.opacity.animation(.easeInOut(duration: 0.2).delay(0.1)))
@@ -142,17 +142,19 @@ struct InboxView: View {
                 // LAYER 5: BOTTOM HALF SHEET POPUP
                 if let task = selectedTask {
                     VStack {
-                        Spacer() // Pushes the popup to the bottom half
+                        Spacer()
                         
                         TaskDetailPopup(task: task, isDarkMode: isDarkMode, dismissAction: dismissPopup)
-                            .frame(maxHeight: 550) // Limits height to roughly the bottom half
+                            .frame(maxHeight: 550)
                     }
-                    .transition(.move(edge: .bottom)) // Smooth slide up
+                    .transition(.move(edge: .bottom))
                     .zIndex(100)
                     .ignoresSafeArea(edges: .bottom)
                 }
             }
             .navigationBarHidden(true)
+            // FIX: Hides the native bottom TabBar when the menu or popup opens
+            .toolbar(isMenuOpen || selectedTask != nil ? .hidden : .visible, for: .tabBar)
             .sheet(isPresented: $showingAddSheet) { AddTaskView() }
         }
     }
@@ -228,6 +230,8 @@ struct TaskRowView: View {
                     }
                     .foregroundColor(.gray.opacity(0.6))
                 }
+                // FIX: Forces the invisible Spacer() space to be clickable
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
@@ -236,7 +240,7 @@ struct TaskRowView: View {
 }
 
 // ---------------------------------------------------------
-// THE NEW HALF-SHEET POPUP
+// THE HALF-SHEET POPUP
 // ---------------------------------------------------------
 struct TaskDetailPopup: View {
     @Environment(\.modelContext) private var modelContext
@@ -250,14 +254,12 @@ struct TaskDetailPopup: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Sleek Apple-style Drag Handle
             Capsule()
                 .fill(Color.gray.opacity(0.5))
                 .frame(width: 40, height: 5)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
             
-            // Header
             HStack {
                 Text(task.title).font(.headline).foregroundColor(isDarkMode ? .white : .black)
                 Spacer()
@@ -271,7 +273,6 @@ struct TaskDetailPopup: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     
-                    // 1. Subtasks
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Steps").font(.caption).bold().foregroundColor(.gray)
                         ForEach(task.subtasks) { subtask in
@@ -309,7 +310,6 @@ struct TaskDetailPopup: View {
                     
                     Divider().background(Color.gray.opacity(0.3))
                     
-                    // 2. Notes
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Notes").font(.caption).bold().foregroundColor(.gray)
                         TextEditor(text: $task.notes)
@@ -324,7 +324,6 @@ struct TaskDetailPopup: View {
                     
                     Divider().background(Color.gray.opacity(0.3))
                     
-                    // 3. Image Attachment
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Attachment").font(.caption).bold().foregroundColor(.gray)
                         if let imageData = task.imageData, let uiImage = UIImage(data: imageData) {
@@ -368,7 +367,6 @@ struct TaskDetailPopup: View {
                 }
                 .padding(20)
                 
-                // Safe area padding for the bottom of the phone
                 Spacer().frame(height: 40)
             }
         }

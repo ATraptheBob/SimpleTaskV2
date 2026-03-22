@@ -11,7 +11,6 @@ struct InboxView: View {
         allTasks.filter { !$0.isCompleted || ($0.completionDate != nil && Date().timeIntervalSince($0.completionDate!) < 86400) }
     }
     
-    // Finds due habits by checking the new completionDates array
     var dueHabits: [HabitItem] {
         allHabits.filter { !isHabitDone($0) }
     }
@@ -46,12 +45,35 @@ struct InboxView: View {
                 .listStyle(.plain)
             }
             .navigationTitle("Inbox")
-            .toolbar { Button(action: { showingAddSheet = true }) { Image(systemName: "plus") } }
+            .toolbar {
+                // THE NEW TOP-LEFT MENU
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        NavigationLink(destination: ArchiveView()) {
+                            Label("Archive", systemImage: "archivebox")
+                        }
+                        NavigationLink(destination: StatsView()) {
+                            Label("Statistics", systemImage: "chart.bar")
+                        }
+                        NavigationLink(destination: SettingsView()) {
+                            Label("Settings", systemImage: "gearshape")
+                        }
+                    } label: {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.title3)
+                            .foregroundColor(.gray)
+                    }
+                }
+                
+                // Existing Add Button
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: { showingAddSheet = true }) { Image(systemName: "plus") }
+                }
+            }
             .sheet(isPresented: $showingAddSheet) { AddTaskView() }
         }
     }
 
-    // Helper functions for the Inbox Habits
     private func isHabitDone(_ habit: HabitItem) -> Bool {
         let cal = Calendar.current
         return habit.completionDates.contains { date in
@@ -69,56 +91,60 @@ struct InboxView: View {
     }
 }
 
-// Optimized TaskRow with smooth expansion
+// THE FIX: Uses DisclosureGroup for buttery smooth native iOS animations
 struct TaskRow: View {
     @Bindable var task: TaskItem
     @State private var isExpanded = false
     @State private var newSubtaskTitle = ""
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(task.subtasks) { subtask in
+                    HStack {
+                        Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(subtask.isCompleted ? .green : .gray)
+                            .onTapGesture { withAnimation { subtask.isCompleted.toggle() } }
+                        Text(subtask.title).font(.subheadline).strikethrough(subtask.isCompleted).foregroundColor(.gray)
+                    }
+                    .padding(.leading, 8)
+                }
+                
+                HStack {
+                    Image(systemName: "plus.circle").foregroundColor(.gray)
+                    TextField("New step...", text: $newSubtaskTitle)
+                        .font(.subheadline)
+                        .onSubmit {
+                            if !newSubtaskTitle.isEmpty {
+                                withAnimation {
+                                    task.subtasks.append(SubtaskItem(title: newSubtaskTitle))
+                                    newSubtaskTitle = ""
+                                }
+                            }
+                        }
+                }
+                .padding(.leading, 8)
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+        } label: {
             HStack {
                 Image(systemName: task.isCompleted ? "checkmark.square.fill" : "square")
                     .foregroundColor(task.isCompleted ? .gray : .pink)
-                    .onTapGesture { withAnimation { task.isCompleted.toggle(); task.completionDate = task.isCompleted ? Date() : nil } }
-                
-                Text(task.title).foregroundColor(task.isCompleted ? .gray : .white).strikethrough(task.isCompleted)
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    .foregroundColor(.gray)
-                    .onTapGesture { withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { isExpanded.toggle() } }
-            }
-            .padding(.vertical, 8)
-            
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(task.subtasks) { subtask in
-                        HStack {
-                            Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle").foregroundColor(subtask.isCompleted ? .green : .gray)
-                                .onTapGesture { withAnimation { subtask.isCompleted.toggle() } }
-                            Text(subtask.title).font(.subheadline).strikethrough(subtask.isCompleted)
+                    .font(.title3)
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            task.isCompleted.toggle()
+                            task.completionDate = task.isCompleted ? Date() : nil
                         }
-                        .padding(.leading, 24)
                     }
-                    
-                    HStack {
-                        Image(systemName: "plus.circle").foregroundColor(.gray)
-                        TextField("New step...", text: $newSubtaskTitle)
-                            .font(.subheadline)
-                            .onSubmit {
-                                if !newSubtaskTitle.isEmpty {
-                                    withAnimation { task.subtasks.append(SubtaskItem(title: newSubtaskTitle)); newSubtaskTitle = "" }
-                                }
-                            }
-                    }
-                    .padding(.leading, 24)
-                }
-                .padding(.bottom, 10)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                
+                Text(task.title)
+                    .foregroundColor(task.isCompleted ? .gray : .white)
+                    .strikethrough(task.isCompleted)
             }
+            .padding(.vertical, 4)
         }
+        .tint(.gray) // Colors the expand chevron to match your dark mode UI
     }
 }

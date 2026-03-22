@@ -44,13 +44,16 @@ final class SubtaskItem {
 final class HabitItem {
     @Attribute(.unique) var id: UUID = UUID()
     var title: String
-    var streak: Int
-    var lastCompletedDate: Date?
-    var frequency: RepeatInterval
+    var frequency: RepeatInterval?
+    var completionDates: [Date] = [] // V3: Stores every completion for toggling
     
-    init(title: String, streak: Int = 0, frequency: RepeatInterval = .daily) {
+    // Streak logic: counts consecutive days/weeks/months
+    var streak: Int {
+        return completionDates.count // Simple version for now
+    }
+    
+    init(title: String, frequency: RepeatInterval = .daily) {
         self.title = title
-        self.streak = streak
         self.frequency = frequency
     }
 }

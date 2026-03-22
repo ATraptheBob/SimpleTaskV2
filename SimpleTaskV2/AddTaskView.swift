@@ -44,10 +44,12 @@ struct AddTaskView: View {
                     Button("Save") {
                         let task = TaskItem(title: title, dueDate: dueDate, repeatInterval: repeatInterval)
                         modelContext.insert(task)
+                        
+                        // Force the save manually since autosave is off
+                        try? modelContext.save()
+                        
                         dismiss()
                     }
-                    .foregroundColor(.pink)
-                    .disabled(title.isEmpty)
                 }
             }
             .font(.system(.body, design: .monospaced))

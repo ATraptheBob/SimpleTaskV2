@@ -3,6 +3,32 @@ import SwiftData
 
 @main
 struct SimpleTaskV2App: App {
+    let container: ModelContainer
+    
+    init() {
+        do {
+            // 1. Define the models
+            let schema = Schema([
+                TaskItem.self,
+                SubtaskItem.self,
+                HabitItem.self,
+                PomodoroSession.self
+            ])
+            
+            // 2. Standard configuration
+            let config = ModelConfiguration()
+            
+            // 3. Create the container
+            container = try ModelContainer(for: schema, configurations: config)
+            
+            // 4. THE SPEED FIX: Turn off autosave on the active memory context
+            container.mainContext.autosaveEnabled = false
+            
+        } catch {
+            fatalError("Could not configure SwiftData: \(error)")
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             TabView {
@@ -21,9 +47,9 @@ struct SimpleTaskV2App: App {
                 StatsView()
                     .tabItem { Label("Stats", systemImage: "chart.bar.fill") }
             }
-            .tint(.pink) // Minimalist color accent
+            .tint(.pink)
             .preferredColorScheme(.dark)
         }
-        .modelContainer(for: [TaskItem.self, SubtaskItem.self, HabitItem.self, PomodoroSession.self])
+        .modelContainer(container) // Uses your highly-optimized custom container
     }
 }

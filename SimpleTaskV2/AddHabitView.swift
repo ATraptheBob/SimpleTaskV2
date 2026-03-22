@@ -44,7 +44,8 @@ struct AddHabitView: View {
                             existingHabit.title = title
                             existingHabit.frequency = frequency
                         } else {
-                            let newHabit = HabitItem(title: title, streak: 0, frequency: frequency)
+                            // FIX 1: Removed 'streak: 0' since the model calculates it automatically now
+                            let newHabit = HabitItem(title: title, frequency: frequency)
                             modelContext.insert(newHabit)
                         }
                         dismiss()
@@ -56,7 +57,8 @@ struct AddHabitView: View {
             .onAppear {
                 if let existingHabit = habitToEdit {
                     title = existingHabit.title
-                    frequency = existingHabit.frequency
+                    // FIX 2: Added '?? .daily' to safely unwrap the optional frequency
+                    frequency = existingHabit.frequency ?? .daily
                 }
             }
         }

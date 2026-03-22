@@ -36,7 +36,7 @@ struct HabitsView: View {
     }
 }
 
-// Reusable logic section for V3
+// Reusable logic section
 struct HabitSection: View {
     let title: String
     let habits: [HabitItem]
@@ -67,21 +67,34 @@ struct HabitSection: View {
         }
     }
     
-    // Evaluates completion based on frequency
+    // Evaluates completion by searching the completionDates array
     private func isCompleted(_ habit: HabitItem) -> Bool {
-        guard let lastDate = habit.lastCompletedDate else { return false }
         let calendar = Calendar.current
-        switch habit.frequency {
-        case .daily: return calendar.isDateInToday(lastDate)
-        case .weekly: return calendar.isDate(lastDate, equalTo: Date(), toGranularity: .weekOfYear)
-        case .monthly: return calendar.isDate(lastDate, equalTo: Date(), toGranularity: .month)
-        case .none: return false
+        return habit.completionDates.contains { date in
+            switch habit.frequency ?? .daily {
+            case .daily: return calendar.isDateInToday(date)
+            case .weekly: return calendar.isDate(date, equalTo: Date(), toGranularity: .weekOfYear)
+            case .monthly: return calendar.isDate(date, equalTo: Date(), toGranularity: .month)
+            case .none: return false
+            }
         }
     }
     
+    // Adds or removes completion dates
     private func toggleHabit(_ habit: HabitItem) {
-        if isCompleted(habit) { return } // Prevent double-clicking
-        habit.streak += 1
-        habit.lastCompletedDate = Date()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
+        withAnimation(.spring()) {
+            if isCompleted(habit) {
+                // Remove today's completion (unchecking)
+                habit.completionDates.removeAll { date in
+                    calendar.isDate(date, equalTo: today, toGranularity: .day)
+                }
+            } else {
+                // Add new completion
+                habit.completionDates.append(Date())
+            }
+        }
     }
 }

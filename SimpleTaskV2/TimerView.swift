@@ -1,13 +1,15 @@
 import SwiftUI
 import SwiftData
-import Combine // <-- This is the missing piece!
+import Combine
 
 struct TimerView: View {
     @Environment(\.modelContext) private var modelContext
     
-    @State private var timeRemaining = 25 * 60 // 25 minutes in seconds
+    // Reads the duration directly from your SettingsView
+    @AppStorage("pomodoroDuration") private var sessionLength = 25
+    
+    @State private var timeRemaining = 25 * 60
     @State private var timerRunning = false
-    @State private var sessionLength = 25
     
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -17,7 +19,6 @@ struct TimerView: View {
                 Color(white: 0.05).ignoresSafeArea()
                 
                 VStack(spacing: 40) {
-                    // Circular Progress & Time
                     ZStack {
                         Circle()
                             .stroke(lineWidth: 15)
@@ -37,7 +38,6 @@ struct TimerView: View {
                     }
                     .padding(40)
                     
-                    // Controls
                     HStack(spacing: 30) {
                         Button(action: resetTimer) {
                             Image(systemName: "arrow.counterclockwise.circle.fill")
@@ -54,6 +54,7 @@ struct TimerView: View {
                 }
             }
             .navigationTitle("Focus")
+            .onAppear { resetTimer() } // Always updates to match Settings when opened
             .onReceive(timer) { _ in
                 if timerRunning && timeRemaining > 0 {
                     timeRemaining -= 1
@@ -77,7 +78,6 @@ struct TimerView: View {
     
     private func finishSession() {
         timerRunning = false
-        // Save the session to SwiftData for the Stats view
         let session = PomodoroSession(durationMinutes: sessionLength)
         modelContext.insert(session)
         resetTimer()

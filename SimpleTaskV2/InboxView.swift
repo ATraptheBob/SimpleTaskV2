@@ -29,10 +29,8 @@ struct InboxView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // LAYER 0: THEME BACKGROUND
                 (isDarkMode ? Color(white: 0.05) : Color(white: 0.95)).ignoresSafeArea()
                 
-                // LAYER 1: THE INBOX
                 VStack(spacing: 0) {
                     HStack {
                         Spacer().frame(width: 44)
@@ -56,12 +54,21 @@ struct InboxView: View {
                         if !dueHabits.isEmpty {
                             Section(header: Text("Due Habits").foregroundColor(.orange)) {
                                 ForEach(dueHabits) { habit in
-                                    HStack {
-                                        Text(habit.title).foregroundColor(isDarkMode ? .white : .black)
+                                    // FIX: Habit UI now structurally identical to Task UI
+                                    HStack(spacing: 12) {
+                                        Button(action: { toggleHabit(habit) }) {
+                                            Image(systemName: "circle")
+                                                .foregroundColor(.orange)
+                                                .font(.title2)
+                                        }
+                                        .buttonStyle(.plain)
+                                        
+                                        Text(habit.title)
+                                            .foregroundColor(isDarkMode ? .white : .black)
+                                        
                                         Spacer()
-                                        Image(systemName: "circle").foregroundColor(.orange)
-                                            .onTapGesture { toggleHabit(habit) }
                                     }
+                                    .padding(.vertical, 8)
                                     .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
                                     .listRowSeparator(.hidden)
                                 }
@@ -85,7 +92,6 @@ struct InboxView: View {
                     .scrollContentBackground(.hidden)
                 }
                 
-                // LAYER 2: THE PERFECTLY CENTERED BUBBLE MENU
                 ZStack {
                     VStack {
                         HStack {
@@ -104,7 +110,6 @@ struct InboxView: View {
                     
                     if isMenuOpen {
                         VStack(alignment: .center, spacing: 50) {
-                            // FIX: Forces the TabBar to stay hidden when navigating into these views
                             NavigationLink(destination: ArchiveView().toolbar(.hidden, for: .tabBar)) { MenuLink(title: "Archive", icon: "archivebox") }
                                 .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
                             
@@ -119,7 +124,6 @@ struct InboxView: View {
                 }
                 .allowsHitTesting(isMenuOpen)
                 
-                // LAYER 3: HAMBURGER BUTTON
                 VStack {
                     HStack {
                         HamburgerButton(isOpen: $isMenuOpen)
@@ -130,7 +134,6 @@ struct InboxView: View {
                     Spacer()
                 }
                 
-                // LAYER 4: DARK FADE OVERLAY
                 if selectedTask != nil {
                     Color.black.opacity(0.6)
                         .ignoresSafeArea()
@@ -139,7 +142,6 @@ struct InboxView: View {
                         .zIndex(99)
                 }
                 
-                // LAYER 5: BOTTOM HALF SHEET POPUP
                 if let task = selectedTask {
                     VStack {
                         Spacer()
@@ -153,7 +155,6 @@ struct InboxView: View {
                 }
             }
             .navigationBarHidden(true)
-            // FIX: Hides the native bottom TabBar when the menu or popup opens
             .toolbar(isMenuOpen || selectedTask != nil ? .hidden : .visible, for: .tabBar)
             .sheet(isPresented: $showingAddSheet) { AddTaskView() }
         }
@@ -188,7 +189,7 @@ struct InboxView: View {
 }
 
 // ---------------------------------------------------------
-// TASK ROW
+// TASK ROW (Unified Icons)
 // ---------------------------------------------------------
 struct TaskRowView: View {
     @Environment(\.modelContext) private var modelContext
@@ -209,7 +210,8 @@ struct TaskRowView: View {
                 }
                 if task.isCompleted { hapticSound.playCompleteSound() }
             }) {
-                Image(systemName: task.isCompleted ? "checkmark.square.fill" : "square")
+                // FIX: Standardized to circles to match Habits and Subtasks
+                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundColor(task.isCompleted ? .gray : .pink)
                     .font(.title2)
             }
@@ -230,7 +232,6 @@ struct TaskRowView: View {
                     }
                     .foregroundColor(.gray.opacity(0.6))
                 }
-                // FIX: Forces the invisible Spacer() space to be clickable
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

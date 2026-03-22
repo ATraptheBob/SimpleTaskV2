@@ -15,16 +15,21 @@ final class TaskItem {
     var dueDate: Date
     var isCompleted: Bool
     var completionDate: Date?
-    var repeatInterval: RepeatInterval
+    var repeatInterval: RepeatInterval?
     
-    // The new Subtask relationship. 'Cascade' means if you delete the main task, the subtasks delete too.
+    // NEW: Notes and Image attachments
+    var notes: String
+    @Attribute(.externalStorage) var imageData: Data?
+    
     @Relationship(deleteRule: .cascade) var subtasks: [SubtaskItem] = []
     
-    init(title: String, dueDate: Date = .now, isCompleted: Bool = false, repeatInterval: RepeatInterval = .none) {
+    init(title: String, dueDate: Date = .now, isCompleted: Bool = false, repeatInterval: RepeatInterval = .none, notes: String = "", imageData: Data? = nil) {
         self.title = title
         self.dueDate = dueDate
         self.isCompleted = isCompleted
         self.repeatInterval = repeatInterval
+        self.notes = notes
+        self.imageData = imageData
     }
 }
 
@@ -45,11 +50,10 @@ final class HabitItem {
     @Attribute(.unique) var id: UUID = UUID()
     var title: String
     var frequency: RepeatInterval?
-    var completionDates: [Date] = [] // V3: Stores every completion for toggling
+    var completionDates: [Date] = []
     
-    // Streak logic: counts consecutive days/weeks/months
     var streak: Int {
-        return completionDates.count // Simple version for now
+        return completionDates.count
     }
     
     init(title: String, frequency: RepeatInterval = .daily) {
@@ -58,7 +62,6 @@ final class HabitItem {
     }
 }
 
-// New model to feed your Statistics screen
 @Model
 final class PomodoroSession {
     @Attribute(.unique) var id: UUID = UUID()

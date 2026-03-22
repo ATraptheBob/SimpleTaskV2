@@ -5,6 +5,9 @@ import SwiftData
 struct SimpleTaskV2App: App {
     let container: ModelContainer
     
+    // Listens to the Dark Mode toggle from SettingsView
+    @AppStorage("isDarkMode") private var isDarkMode = true
+    
     init() {
         do {
             let schema = Schema([
@@ -34,7 +37,8 @@ struct SimpleTaskV2App: App {
                     .tabItem { Label("Focus", systemImage: "timer") }
             }
             .tint(.pink)
-            .preferredColorScheme(.dark)
+            // THE FIX: Forces the entire app to respect your custom setting
+            .preferredColorScheme(isDarkMode ? .dark : .light)
         }
         .modelContainer(container)
     }

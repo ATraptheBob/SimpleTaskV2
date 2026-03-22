@@ -7,7 +7,7 @@ struct InboxView: View {
     @Query private var allHabits: [HabitItem]
     
     @State private var showingAddSheet = false
-    @State private var isMenuOpen = false // Controls the bubble animation
+    @State private var isMenuOpen = false
 
     var activeTasks: [TaskItem] {
         allTasks.filter { !$0.isCompleted || ($0.completionDate != nil && Date().timeIntervalSince($0.completionDate!) < 86400) }
@@ -24,9 +24,8 @@ struct InboxView: View {
                 
                 // LAYER 1: THE INBOX
                 VStack(spacing: 0) {
-                    // Custom Header Row
                     HStack {
-                        Spacer().frame(width: 44) // Placeholder for the absolute button
+                        Spacer().frame(width: 44)
                         Spacer()
                         Text("Inbox").font(.title2).bold()
                         Spacer()
@@ -63,28 +62,32 @@ struct InboxView: View {
                 
                 // LAYER 2: THE BUBBLE OUT MENU
                 ZStack {
-                    // The expanding colored circle
                     Circle()
                         .fill(Color(white: 0.12))
                         .frame(width: 50, height: 50)
-                        .scaleEffect(isMenuOpen ? 45 : 0.001) // 45x scale covers the entire screen
-                        .position(x: 35, y: 30) // Anchored to the button's location
+                        .scaleEffect(isMenuOpen ? 45 : 0.001)
+                        .position(x: 35, y: 30)
                         .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isMenuOpen)
                         .ignoresSafeArea()
                     
-                    // The Centered Options
                     if isMenuOpen {
                         VStack(alignment: .center, spacing: 50) {
+                            // THE FIX: Closes the menu simultaneously when tapped
                             NavigationLink(destination: ArchiveView()) { MenuLink(title: "Archive", icon: "archivebox") }
+                                .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
+                            
                             NavigationLink(destination: StatsView()) { MenuLink(title: "Statistics", icon: "chart.bar") }
+                                .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
+                            
                             NavigationLink(destination: SettingsView()) { MenuLink(title: "Settings", icon: "gearshape") }
+                                .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
                         }
                         .transition(.opacity.animation(.easeInOut(duration: 0.2).delay(0.1)))
                     }
                 }
-                .allowsHitTesting(isMenuOpen) // Prevents the invisible bubble from stealing touches
+                .allowsHitTesting(isMenuOpen)
                 
-                // LAYER 3: THE ABSOLUTE BUTTON (Always on top)
+                // LAYER 3: THE ABSOLUTE BUTTON
                 VStack {
                     HStack {
                         HamburgerButton(isOpen: $isMenuOpen)
@@ -95,7 +98,7 @@ struct InboxView: View {
                     Spacer()
                 }
             }
-            .navigationBarHidden(true) // Turns off Apple's default toolbar
+            .navigationBarHidden(true)
             .sheet(isPresented: $showingAddSheet) { AddTaskView() }
         }
     }
@@ -117,7 +120,6 @@ struct InboxView: View {
     }
 }
 
-// THE HAMBURGER ANIMATION
 struct HamburgerButton: View {
     @Binding var isOpen: Bool
     
@@ -148,7 +150,6 @@ struct HamburgerButton: View {
     }
 }
 
-// HELPER FOR MENU TEXT
 struct MenuLink: View {
     let title: String
     let icon: String
@@ -161,7 +162,6 @@ struct MenuLink: View {
     }
 }
 
-// SMOOTH SUBTASK EXPANSION
 struct TaskRow: View {
     @Bindable var task: TaskItem
     @State private var isExpanded = false

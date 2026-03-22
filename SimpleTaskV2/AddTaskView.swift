@@ -42,12 +42,13 @@ struct AddTaskView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
+                        // 1. Fire the haptic feedback immediately
+                        HapticAndSoundManager.shared.triggerHapticSuccess()
+                        
+                        // 2. Insert and save
                         let task = TaskItem(title: title, dueDate: dueDate, repeatInterval: repeatInterval)
                         modelContext.insert(task)
-                        
-                        // Force the save manually since autosave is off
                         try? modelContext.save()
-                        
                         dismiss()
                     }
                 }

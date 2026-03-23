@@ -60,6 +60,18 @@ final class HabitItem {
         self.title = title
         self.frequency = frequency
     }
+    
+    var isDone: Bool {
+        let cal = Calendar.current
+        return completionDates.contains { date in
+            switch frequency ?? .daily {
+            case .daily: return cal.isDateInToday(date)
+            case .weekly: return cal.isDate(date, equalTo: Date(), toGranularity: .weekOfYear)
+            case .monthly: return cal.isDate(date, equalTo: Date(), toGranularity: .month)
+            case .none: return false
+            }
+        }
+    }
 }
 
 @Model

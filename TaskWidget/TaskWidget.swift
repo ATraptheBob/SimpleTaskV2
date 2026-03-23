@@ -24,13 +24,12 @@ struct Provider: TimelineProvider {
                 let config = ModelConfiguration(url: databaseURL)
                 let container = try ModelContainer(for: schema, configurations: config)
                 
-                let descriptorTasks = FetchDescriptor<TaskItem>()
-                let allTasks = (try? container.mainContext.fetch(descriptorTasks)) ?? []
-                let activeTasksCount = allTasks.filter { !$0.isCompleted }.count
+                let descriptorTasks = FetchDescriptor<TaskItem>(predicate: #Predicate { !$0.isCompleted })
+                let activeTasksCount = (try? container.mainContext.fetchCount(descriptorTasks)) ?? 0
                 
                 let descriptorHabits = FetchDescriptor<HabitItem>()
                 let allHabits = (try? container.mainContext.fetch(descriptorHabits)) ?? []
-                let dueHabitsCount = allHabits.filter { !isHabitDone($0) }.count
+                let dueHabitsCount = allHabits.filter { !$0.isDone }.count
 
                 let entry = SimpleEntry(date: Date(), pendingTasksCount: activeTasksCount, pendingHabitsCount: dueHabitsCount)
                 
@@ -44,18 +43,6 @@ struct Provider: TimelineProvider {
                 let entry = SimpleEntry(date: Date(), pendingTasksCount: 0, pendingHabitsCount: 0)
                 let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(900)))
                 completion(timeline)
-            }
-        }
-    }
-    
-    private func isHabitDone(_ habit: HabitItem) -> Bool {
-        let cal = Calendar.current
-        return habit.completionDates.contains { date in
-            switch habit.frequency ?? .daily {
-            case .daily: return cal.isDateInToday(date)
-            case .weekly: return cal.isDate(date, equalTo: Date(), toGranularity: .weekOfYear)
-            case .monthly: return cal.isDate(date, equalTo: Date(), toGranularity: .month)
-            case .none: return false
             }
         }
     }

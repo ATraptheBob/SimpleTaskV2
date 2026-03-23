@@ -43,7 +43,7 @@ struct TimerView: View {
                             .foregroundColor(.pink)
                         
                         Circle()
-                            .trim(from: 0.0, to: CGFloat(timeRemaining) / CGFloat(sessionLength * 60))
+                            .trim(from: 0.0, to: sessionLength > 0 ? CGFloat(timeRemaining) / CGFloat(sessionLength * 60) : 0)
                             .stroke(style: StrokeStyle(lineWidth: 15, lineCap: .round, lineJoin: .round))
                             .foregroundColor(.pink)
                             .rotationEffect(Angle(degrees: 270.0))
@@ -171,9 +171,13 @@ struct TimerView: View {
                 TextField("E.g., SAT Prep, Reading", text: $newSubject)
                 Button("Cancel", role: .cancel) { newSubject = "" }
                 Button("Add") {
-                    if !newSubject.isEmpty {
-                        savedSubjects += ",\(newSubject)"
-                        selectedSubject = newSubject
+                    let trimmed = newSubject.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        let currentSubjects = savedSubjects.components(separatedBy: ",")
+                        if !currentSubjects.contains(trimmed) {
+                            savedSubjects += ",\(trimmed)"
+                            selectedSubject = trimmed
+                        }
                         newSubject = ""
                     }
                 }
@@ -191,7 +195,7 @@ struct TimerView: View {
         if timerRunning {
             let remainingSeconds = targetEndTime - Date().timeIntervalSince1970
             if remainingSeconds > 0 {
-                timeRemaining = Int(remainingSeconds)
+                timeRemaining = Int(ceil(remainingSeconds))
             } else {
                 finishSession()
             }

@@ -24,7 +24,19 @@ struct SimpleTaskV2App: App {
             
             container = try ModelContainer(for: schema, configurations: config)
         } catch {
-            fatalError("Could not configure SwiftData: \(error)")
+            print("Could not configure SwiftData: \(error). Falling back to in-memory store.")
+            let schema = Schema([
+                TaskItem.self,
+                SubtaskItem.self,
+                HabitItem.self,
+                PomodoroSession.self
+            ])
+            let config = ModelConfiguration(isStoredInMemoryOnly: true)
+            do {
+                container = try ModelContainer(for: schema, configurations: config)
+            } catch {
+                fatalError("Could not create ModelContainer: \(error)")
+            }
         }
     }
 

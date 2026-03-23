@@ -16,15 +16,24 @@ struct InboxView: View {
     @AppStorage("isDarkMode") private var isDarkMode = true
 
     var activeTasks: [TaskItem] {
-        let filtered = allTasks.filter { !$0.isCompleted || ($0.completionDate != nil && Date().timeIntervalSince($0.completionDate!) < 86400) }
-        return filtered.sorted { task1, task2 in
-            if task1.isCompleted == task2.isCompleted { return task1.dueDate < task2.dueDate }
-            return !task1.isCompleted && task2.isCompleted
+        let filtered = allTasks.filter { task in
+            if !task.isCompleted { return true }
+            if let completionDate = task.completionDate {
+                return Date().timeIntervalSince(completionDate) < 86400
+            }
+            return false
+        }
+        // In-memory sort: Incomplete first, then by date
+        return filtered.sorted { t1, t2 in
+            if t1.isCompleted == t2.isCompleted {
+                return t1.dueDate < t2.dueDate
+            }
+            return !t1.isCompleted
         }
     }
     
     var dueHabits: [HabitItem] {
-        allHabits.filter { !isHabitDone($0) }
+        allHabits.filter { !$0.isDone }
     }
 
     var body: some View {
@@ -162,18 +171,6 @@ struct InboxView: View {
             .navigationBarHidden(true)
             .toolbar(isMenuOpen || selectedTask != nil ? .hidden : .visible, for: .tabBar)
             .sheet(isPresented: $showingAddSheet) { AddTaskView() }
-        }
-    }
-
-    private func isHabitDone(_ habit: HabitItem) -> Bool {
-        let cal = Calendar.current
-        return habit.completionDates.contains { date in
-            switch habit.frequency ?? .daily {
-            case .daily: return cal.isDateInToday(date)
-            case .weekly: return cal.isDate(date, equalTo: Date(), toGranularity: .weekOfYear)
-            case .monthly: return cal.isDate(date, equalTo: Date(), toGranularity: .month)
-            case .none: return false
-            }
         }
     }
 

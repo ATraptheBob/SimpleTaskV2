@@ -138,7 +138,6 @@ struct Provider: TimelineProvider {
 struct TaskWidgetEntryView : View {
     var entry: Provider.Entry
     
-    // NEW: Detects if the user added a Small or Medium widget
     @Environment(\.widgetFamily) var family
 
     var body: some View {
@@ -168,55 +167,78 @@ struct TaskWidgetEntryView : View {
             .containerBackground(Color(white: 0.05), for: .widget)
             
         } else {
-            // THE NEW MEDIUM INTERACTIVE WIDGET
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Image(systemName: "checklist").foregroundColor(.pink).font(.title3)
-                    Text("Up Next").font(.headline).foregroundColor(.white)
-                    Spacer()
-                    Text("\(entry.pendingTasksCount) Left").font(.caption).foregroundColor(.gray)
-                }
+            // THE REMINDERS-STYLE MEDIUM WIDGET
+            VStack(alignment: .leading, spacing: 0) {
                 
-                Divider().background(Color.gray.opacity(0.3))
+                // The Reminders Header
+                HStack(alignment: .bottom) {
+                    Text("Tasks")
+                        .font(.headline)
+                        .foregroundColor(.pink)
+                    Spacer()
+                    Text("\(entry.pendingTasksCount)")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(Color.gray.opacity(0.6))
+                        .offset(y: 4)
+                }
+                .padding(.bottom, 8)
                 
                 if entry.topTasks.isEmpty {
                     VStack {
                         Spacer()
-                        Text("All caught up! 🎉").foregroundColor(.gray).font(.subheadline)
+                        Text("All tasks completed").foregroundColor(.gray).font(.subheadline)
                         Spacer()
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
                 } else {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(entry.topTasks) { task in
-                            HStack {
-                                // THE INTERACTIVE BUTTON
-                                Button(intent: ToggleTaskIntent(taskID: task.id)) {
-                                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                                        .foregroundColor(task.isCompleted ? .gray : .pink)
-                                        .font(.title3)
+                    VStack(spacing: 0) {
+                        ForEach(Array(entry.topTasks.enumerated()), id: \.element.id) { index, task in
+                            VStack(spacing: 0) {
+                                HStack(alignment: .center, spacing: 12) {
+                                    
+                                    // THE INTERACTIVE BUTTON
+                                    Button(intent: ToggleTaskIntent(taskID: task.id)) {
+                                        if task.isCompleted {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.system(size: 20))
+                                                .foregroundColor(.pink)
+                                        } else {
+                                            Circle()
+                                                .strokeBorder(Color.gray.opacity(0.4), lineWidth: 1.5)
+                                                .frame(width: 20, height: 20)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Text(task.title)
+                                        .font(.system(size: 15, weight: .regular))
+                                        .foregroundColor(task.isCompleted ? .gray : .white)
+                                        .strikethrough(task.isCompleted, color: .gray)
+                                        .lineLimit(1)
+                                    
+                                    Spacer()
                                 }
-                                .buttonStyle(.plain) // Prevents the whole widget from flashing when tapped
+                                .padding(.vertical, 8)
                                 
-                                Text(task.title)
-                                    .foregroundColor(task.isCompleted ? .gray : .white)
-                                    .strikethrough(task.isCompleted)
-                                    .font(.subheadline)
-                                    .lineLimit(1)
-                                
-                                Spacer()
+                                if index < entry.topTasks.count - 1 {
+                                    Divider()
+                                        .background(Color.gray.opacity(0.3))
+                                        .padding(.leading, 32)
+                                }
                             }
                         }
                     }
                 }
-                Spacer()
+                Spacer(minLength: 0)
             }
-            .padding()
-            .containerBackground(Color(white: 0.05), for: .widget)
+            // FIX: Shrunk horizontal padding from 16 down to 4 to push everything outward
+            .padding(.horizontal, 4)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
+            .containerBackground(Color(white: 0.10), for: .widget)
         }
     }
 }
-
 // ---------------------------------------------------------
 // 5. WIDGET CONFIGURATION
 // ---------------------------------------------------------

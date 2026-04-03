@@ -84,32 +84,38 @@ struct HabitDashboardPanel: View {
         return counts
     }
 
-    // UPDATED: Logic to calculate percentage completion
-    private var monthlyStats: (total: Int, bestStreak: Int, completionRate: Double) {
+    // UPDATED: Logic to calculate Average Daily Completion Percentage
+    private var monthlyStats: (total: Int, bestStreak: Int, dailyAvg: Double) {
         guard !months.isEmpty, selectedMonthIndex < months.count else { return (0, 0, 0) }
         let currentMonth = months[selectedMonthIndex]
         let calendar = Calendar.current
         
         let monthDates = currentMonth.dates.filter { calendar.isDate($0, equalTo: currentMonth.monthStart, toGranularity: .month) }
-        let completionsInMonth = monthDates.map { dailyCompletions[$0] ?? 0 }
+        let totalHabits = max(habits.count, 1)
         
-        let total = completionsInMonth.reduce(0, +)
+        // 1. Calculate percentage for each individual day
+        let dailyPercentages = monthDates.map { date -> Double in
+            let count = dailyCompletions[date] ?? 0
+            return Double(count) / Double(totalHabits)
+        }
         
-        // Potential completions = number of habits * days in that month
-        let potential = max(habits.count, 1) * monthDates.count
-        let rate = (Double(total) / Double(potential)) * 100
+        // 2. Average those percentages
+        let avgRate = (dailyPercentages.reduce(0, +) / Double(max(monthDates.count, 1))) * 100
+        
+        let total = monthDates.map { dailyCompletions[$0] ?? 0 }.reduce(0, +)
         
         var maxStreak = 0
         var currentStreak = 0
-        for count in completionsInMonth {
-            if count > 0 {
+        for date in monthDates {
+            if (dailyCompletions[date] ?? 0) > 0 {
                 currentStreak += 1
                 maxStreak = max(maxStreak, currentStreak)
             } else {
                 currentStreak = 0
             }
         }
-        return (total, maxStreak, rate)
+        
+        return (total, maxStreak, avgRate)
     }
 
     var body: some View {
@@ -125,12 +131,11 @@ struct HabitDashboardPanel: View {
                     let today = Calendar.current.startOfDay(for: Date())
                     StatRow(icon: "star.fill", color: .yellow, title: "TODAY", value: "\(dailyCompletions[today] ?? 0)", isDarkMode: isDarkMode)
                 } else {
-                    // UPDATED: Now shows Percentage instead of Average
-                    StatRow(icon: "percent", color: .blue, title: "COMPLETION", value: String(format: "%.0f%%", monthlyStats.completionRate), isDarkMode: isDarkMode)
+                    // UPDATED: Now shows Daily Average %
+                    StatRow(icon: "chart.line.uptrend.xyaxis", color: .blue, title: "DAILY AVG", value: String(format: "%.0f%%", monthlyStats.dailyAvg), isDarkMode: isDarkMode)
                         .transition(.opacity)
                 }
             }
-            // Modern iOS 17 animation syntax
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selectedMonthIndex)
             .padding(.top, 4)
             
@@ -146,7 +151,6 @@ struct HabitHeatmapView: View {
     var isDarkMode: Bool
     @Binding var selectedMonth: Int
     @Binding var months: [MonthData]
-    
     @State private var showDots = false
     
     var body: some View {
@@ -278,7 +282,6 @@ struct HabitSection: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .edit
     @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
-    
     let title: String; let habits: [HabitItem]; let editAction: (HabitItem) -> Void; let isDarkMode: Bool
     private let hapticSound = HapticAndSoundManager.shared
     

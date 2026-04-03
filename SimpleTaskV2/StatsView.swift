@@ -25,7 +25,7 @@ struct StatsView: View {
         return breakdown.map { (name: $0.key, hours: Double($0.value) / 60.0) }
             .sorted { $0.hours > $1.hours }
     }
-
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -74,7 +74,7 @@ struct StatsView: View {
                                                 
                                                 Capsule()
                                                     .fill(Color.pink)
-                                                    // Calculates width relative to the subject with the most hours
+                                                // Calculates width relative to the subject with the most hours
                                                     .frame(width: max(0, geo.size.width * CGFloat(stat.hours / (subjectBreakdown.first?.hours ?? 1))), height: 8)
                                             }
                                         }

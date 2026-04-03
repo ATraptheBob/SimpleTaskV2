@@ -12,7 +12,7 @@ struct SettingsView: View {
     @AppStorage("isDarkMode") private var isDarkMode = true
     @AppStorage("enableHaptics") private var enableHaptics = true
     @AppStorage("enableSounds") private var enableSounds = true
-
+    
     var body: some View {
         ZStack {
             // Adapts background color based on theme

@@ -39,8 +39,8 @@ struct AddTaskView: View {
             }
             .navigationTitle("New Task")
             .onAppear {
-                            isTitleFocused = true
-                        }
+                isTitleFocused = true
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {

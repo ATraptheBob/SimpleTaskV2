@@ -28,7 +28,7 @@ struct TimerView: View {
     var subjectsArray: [String] {
         savedSubjects.components(separatedBy: ",").filter { !$0.isEmpty }
     }
-
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -47,7 +47,7 @@ struct TimerView: View {
                             .stroke(style: StrokeStyle(lineWidth: 15, lineCap: .round, lineJoin: .round))
                             .foregroundColor(.pink)
                             .rotationEffect(Angle(degrees: 270.0))
-                            // FIX: Only applies the animation AFTER the initial layout is complete
+                        // FIX: Only applies the animation AFTER the initial layout is complete
                             .animation(isReadyToAnimate ? .linear(duration: 1.0) : .none, value: timeRemaining)
                         
                         Text(timeString(time: timeRemaining))
@@ -205,45 +205,45 @@ struct TimerView: View {
     }
     
     private func toggleTimer() {
-            HapticAndSoundManager.shared.triggerHapticSelection()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                timerRunning.toggle()
-            }
-            
-            if timerRunning {
-                targetEndTime = Date().timeIntervalSince1970 + Double(timeRemaining)
-                // NEW: Schedule the notification!
-                NotificationManager.shared.scheduleTimerNotification(durationInSeconds: Double(timeRemaining))
-            } else {
-                storedTimeRemaining = timeRemaining
-                targetEndTime = 0
-                // NEW: Cancel the notification because we paused
-                NotificationManager.shared.cancelTimerNotification()
-            }
+        HapticAndSoundManager.shared.triggerHapticSelection()
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            timerRunning.toggle()
         }
-    
-    private func resetTimer() {
-            withAnimation { timerRunning = false }
-            timeRemaining = sessionLength * 60
+        
+        if timerRunning {
+            targetEndTime = Date().timeIntervalSince1970 + Double(timeRemaining)
+            // NEW: Schedule the notification!
+            NotificationManager.shared.scheduleTimerNotification(durationInSeconds: Double(timeRemaining))
+        } else {
             storedTimeRemaining = timeRemaining
             targetEndTime = 0
-            // NEW: Cancel notification
+            // NEW: Cancel the notification because we paused
             NotificationManager.shared.cancelTimerNotification()
         }
+    }
+    
+    private func resetTimer() {
+        withAnimation { timerRunning = false }
+        timeRemaining = sessionLength * 60
+        storedTimeRemaining = timeRemaining
+        targetEndTime = 0
+        // NEW: Cancel notification
+        NotificationManager.shared.cancelTimerNotification()
+    }
     
     private func endSessionEarly() {
-            HapticAndSoundManager.shared.triggerHapticSelection()
-            let elapsedMinutes = sessionLength - (timeRemaining / 60)
-            
-            if elapsedMinutes > 0 {
-                let session = PomodoroSession(durationMinutes: elapsedMinutes, subject: selectedSubject)
-                modelContext.insert(session)
-                try? modelContext.save()
-            }
-            // NEW: Cancel notification
-            NotificationManager.shared.cancelTimerNotification()
-            resetTimer()
+        HapticAndSoundManager.shared.triggerHapticSelection()
+        let elapsedMinutes = sessionLength - (timeRemaining / 60)
+        
+        if elapsedMinutes > 0 {
+            let session = PomodoroSession(durationMinutes: elapsedMinutes, subject: selectedSubject)
+            modelContext.insert(session)
+            try? modelContext.save()
         }
+        // NEW: Cancel notification
+        NotificationManager.shared.cancelTimerNotification()
+        resetTimer()
+    }
     
     private func finishSession() {
         HapticAndSoundManager.shared.playCompleteSound()

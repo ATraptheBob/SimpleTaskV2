@@ -9,11 +9,11 @@ struct HabitsView: View {
     
     @State private var showingAddSheet = false
     @State private var habitToEdit: HabitItem?
-
+    
     var dailyHabits: [HabitItem] { habits.filter { $0.frequency == .daily } }
     var weeklyHabits: [HabitItem] { habits.filter { $0.frequency == .weekly } }
     var monthlyHabits: [HabitItem] { habits.filter { $0.frequency == .monthly } }
-
+    
     var body: some View {
         NavigationStack {
             ZStack {

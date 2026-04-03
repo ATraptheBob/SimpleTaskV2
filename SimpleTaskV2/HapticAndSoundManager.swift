@@ -13,14 +13,14 @@ struct HapticAndSoundManager {
     private var successPlayer: AVAudioPlayer?
     private var deletePlayer: AVAudioPlayer?
     private var completePlayer: AVAudioPlayer?
-
+    
     private init() {
         // Initialize Audio Players
         setupAudioPlayer(for: &successPlayer, resourceName: "success_sound")
         setupAudioPlayer(for: &deletePlayer, resourceName: "delete_sound")
         setupAudioPlayer(for: &completePlayer, resourceName: "complete_sound")
     }
-
+    
     private func setupAudioPlayer(for player: inout AVAudioPlayer?, resourceName: String) {
         guard let soundURL = Bundle.main.url(forResource: resourceName, withExtension: "mp3") else {
             return
@@ -32,30 +32,30 @@ struct HapticAndSoundManager {
             print("Could not load sound \(resourceName): \(error)")
         }
     }
-
+    
     // STABLE HAPTIC TRIGGERS
     func triggerHapticSuccess() {
-        #if os(iOS)
+#if os(iOS)
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
-        #endif
+#endif
     }
-
+    
     func triggerHapticWarning() {
-        #if os(iOS)
+#if os(iOS)
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.warning)
-        #endif
+#endif
     }
-
+    
     func triggerHapticSelection() {
-        #if os(iOS)
+#if os(iOS)
         let generator = UISelectionFeedbackGenerator()
         generator.prepare()
         generator.selectionChanged()
-        #endif
+#endif
     }
-
+    
     // SOUND TRIGGERS
     func playSuccessSound() { successPlayer?.play() }
     func playDeleteSound() { deletePlayer?.play() }

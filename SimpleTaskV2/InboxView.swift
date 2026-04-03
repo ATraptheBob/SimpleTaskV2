@@ -18,7 +18,7 @@ struct InboxView: View {
     @AppStorage("isDarkMode") private var isDarkMode = true
     @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .edit
     @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
-
+    
     var activeTasks: [TaskItem] {
         let filtered = allTasks.filter { task in
             if !task.isCompleted { return true }
@@ -39,7 +39,7 @@ struct InboxView: View {
     var dueHabits: [HabitItem] {
         allHabits.filter { !$0.isDone }
     }
-
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -195,7 +195,7 @@ struct InboxView: View {
             .sheet(isPresented: $showingAddSheet) { AddTaskView() }
         }
     }
-
+    
     private func toggleHabit(_ habit: HabitItem) {
         hapticSound.triggerHapticSelection()
         hapticSound.playSuccessSound()
@@ -213,84 +213,84 @@ struct InboxView: View {
     }
     
     // THIS FUNCTION IS NOW SAFELY INSIDE THE INBOXVIEW
-        private func handleTaskSwipe(option: SwipeOption, task: TaskItem) {
-            switch option {
-            case .edit:
-                // FIX: Removed showingAddSheet = true. Now it just smoothly opens the popup!
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                    selectedTask = task
-                }
-            case .delete:
-                modelContext.delete(task)
+    private func handleTaskSwipe(option: SwipeOption, task: TaskItem) {
+        switch option {
+        case .edit:
+            // FIX: Removed showingAddSheet = true. Now it just smoothly opens the popup!
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                selectedTask = task
+            }
+        case .delete:
+            modelContext.delete(task)
+            try? modelContext.save()
+            WidgetCenter.shared.reloadAllTimelines()
+        case .toggle:
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                task.isCompleted.toggle()
+                task.completionDate = task.isCompleted ? Date() : nil
                 try? modelContext.save()
                 WidgetCenter.shared.reloadAllTimelines()
-            case .toggle:
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                    task.isCompleted.toggle()
-                    task.completionDate = task.isCompleted ? Date() : nil
-                    try? modelContext.save()
-                    WidgetCenter.shared.reloadAllTimelines()
-                }
-            case .none:
-                break
             }
+        case .none:
+            break
         }
-// ---------------------------------------------------------
-// TASK ROW & POPUP
-// ---------------------------------------------------------
-struct TaskRowView: View {
-    @Environment(\.modelContext) private var modelContext
-    @AppStorage("isDarkMode") private var isDarkMode = true
-    
-    @Bindable var task: TaskItem
-    var onSelect: () -> Void
-    private let hapticSound = HapticAndSoundManager.shared
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Button(action: {
-                hapticSound.triggerHapticSelection()
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                    task.isCompleted.toggle()
-                    task.completionDate = task.isCompleted ? Date() : nil
-                    try? modelContext.save()
-                    WidgetCenter.shared.reloadAllTimelines()
-                }
-                
-                if task.isCompleted {
-                    hapticSound.playCompleteSound()
-                    NotificationManager.shared.sendTestTaskNotification(taskTitle: task.title)
-                }
-            }) {
-                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(task.isCompleted ? .gray : .pink)
-                    .font(.title2)
-            }
-            .buttonStyle(.plain)
-            
-            Button(action: { onSelect() }) {
-                HStack {
-                    Text(task.title)
-                        .foregroundColor(task.isCompleted ? .gray : (isDarkMode ? .white : .black))
-                        .strikethrough(task.isCompleted)
-                    
-                    Spacer()
-                    
-                    HStack(spacing: 6) {
-                        if !task.subtasks.isEmpty { Image(systemName: "checklist").font(.caption2) }
-                        if !task.notes.isEmpty { Image(systemName: "text.alignleft").font(.caption2) }
-                        if task.imageData != nil { Image(systemName: "photo").font(.caption2) }
-                    }
-                    .foregroundColor(.gray.opacity(0.6))
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.vertical, 8)
     }
-}
-
+    // ---------------------------------------------------------
+    // TASK ROW & POPUP
+    // ---------------------------------------------------------
+    struct TaskRowView: View {
+        @Environment(\.modelContext) private var modelContext
+        @AppStorage("isDarkMode") private var isDarkMode = true
+        
+        @Bindable var task: TaskItem
+        var onSelect: () -> Void
+        private let hapticSound = HapticAndSoundManager.shared
+        
+        var body: some View {
+            HStack(spacing: 12) {
+                Button(action: {
+                    hapticSound.triggerHapticSelection()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                        task.isCompleted.toggle()
+                        task.completionDate = task.isCompleted ? Date() : nil
+                        try? modelContext.save()
+                        WidgetCenter.shared.reloadAllTimelines()
+                    }
+                    
+                    if task.isCompleted {
+                        hapticSound.playCompleteSound()
+                        NotificationManager.shared.sendTestTaskNotification(taskTitle: task.title)
+                    }
+                }) {
+                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                        .foregroundColor(task.isCompleted ? .gray : .pink)
+                        .font(.title2)
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: { onSelect() }) {
+                    HStack {
+                        Text(task.title)
+                            .foregroundColor(task.isCompleted ? .gray : (isDarkMode ? .white : .black))
+                            .strikethrough(task.isCompleted)
+                        
+                        Spacer()
+                        
+                        HStack(spacing: 6) {
+                            if !task.subtasks.isEmpty { Image(systemName: "checklist").font(.caption2) }
+                            if !task.notes.isEmpty { Image(systemName: "text.alignleft").font(.caption2) }
+                            if task.imageData != nil { Image(systemName: "photo").font(.caption2) }
+                        }
+                        .foregroundColor(.gray.opacity(0.6))
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.vertical, 8)
+        }
+    }
+    
     struct TaskDetailPopup: View {
         @Environment(\.modelContext) private var modelContext
         @Bindable var task: TaskItem

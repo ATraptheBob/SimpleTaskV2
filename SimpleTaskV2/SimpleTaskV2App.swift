@@ -39,23 +39,23 @@ struct SimpleTaskV2App: App {
             }
         }
     }
-
+    
     // ... inside SimpleTaskV2App.swift ...
-        var body: some Scene {
-            WindowGroup {
-                TabView {
-                    InboxView().tabItem { Label("Inbox", systemImage: "tray.fill") }
-                    HabitsView().tabItem { Label("Habits", systemImage: "flame.fill") }
-                    TimerView().tabItem { Label("Focus", systemImage: "timer") }
-                }
-                .tint(.pink)
-                .preferredColorScheme(.dark)
-                // NEW: Ask for notification permission when the app starts
-                .onAppear {
-                    NotificationManager.shared.requestAuthorization()
-                }
+    var body: some Scene {
+        WindowGroup {
+            TabView {
+                InboxView().tabItem { Label("Inbox", systemImage: "tray.fill") }
+                HabitsView().tabItem { Label("Habits", systemImage: "flame.fill") }
+                TimerView().tabItem { Label("Focus", systemImage: "timer") }
             }
-            .modelContainer(container)
+            .tint(.pink)
+            .preferredColorScheme(.dark)
+            // NEW: Ask for notification permission when the app starts
+            .onAppear {
+                NotificationManager.shared.requestAuthorization()
+            }
         }
+        .modelContainer(container)
+    }
     // ...
 }

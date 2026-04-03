@@ -52,8 +52,56 @@ final class HabitItem {
     var frequency: RepeatInterval?
     var completionDates: [Date] = []
     
+    // The mathematically perfect streak calculator
     var streak: Int {
-        return completionDates.count
+        guard !completionDates.isEmpty else { return 0 }
+        
+        let cal = Calendar.current
+        let now = Date()
+        
+        // 1. Convert all dates into "Absolute Time Blocks" (Days, Weeks, or Months since year 1)
+        let periods: [Int] = completionDates.compactMap { date in
+            switch frequency ?? .daily {
+            case .daily: return cal.ordinality(of: .day, in: .era, for: date)
+            case .weekly: return cal.ordinality(of: .weekOfYear, in: .era, for: date)
+            case .monthly: return cal.ordinality(of: .month, in: .era, for: date)
+            case .none: return cal.ordinality(of: .day, in: .era, for: date)
+            }
+        }
+        
+        // 2. Remove duplicate check-ins on the same day/week and sort them newest to oldest
+        let uniquePeriods = Array(Set(periods)).sorted(by: >)
+        
+        // 3. Find out what the "Current" time block is right now
+        let currentPeriod: Int
+        switch frequency ?? .daily {
+        case .daily: currentPeriod = cal.ordinality(of: .day, in: .era, for: now) ?? 0
+        case .weekly: currentPeriod = cal.ordinality(of: .weekOfYear, in: .era, for: now) ?? 0
+        case .monthly: currentPeriod = cal.ordinality(of: .month, in: .era, for: now) ?? 0
+        case .none: currentPeriod = cal.ordinality(of: .day, in: .era, for: now) ?? 0
+        }
+        
+        guard let latestCompletion = uniquePeriods.first else { return 0 }
+        
+        // 4. If the most recent completion is older than "Yesterday" (or last week/month), the streak is dead.
+        if latestCompletion < (currentPeriod - 1) {
+            return 0
+        }
+        
+        // 5. Count backwards safely to find the consecutive streak
+        var currentStreak = 0
+        var expectedPeriod = latestCompletion
+        
+        for period in uniquePeriods {
+            if period == expectedPeriod {
+                currentStreak += 1
+                expectedPeriod -= 1 // Move the target back by 1 block
+            } else {
+                break // We hit a gap!
+            }
+        }
+        
+        return currentStreak
     }
     
     init(title: String, frequency: RepeatInterval = .daily) {

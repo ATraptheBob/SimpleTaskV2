@@ -10,7 +10,7 @@ struct ArchiveView: View {
             task.isCompleted && (task.completionDate != nil && Date().timeIntervalSince(task.completionDate!) >= 86400)
         }
     }
-
+    
     var body: some View {
         NavigationStack {
             ZStack {

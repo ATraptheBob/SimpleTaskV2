@@ -12,38 +12,37 @@ struct HabitsView: View {
     
     @State private var showingAddSheet = false
     @State private var habitToEdit: HabitItem?
-
+    
     var dailyHabits: [HabitItem] { habits.filter { $0.frequency == .daily } }
     var weeklyHabits: [HabitItem] { habits.filter { $0.frequency == .weekly } }
     var monthlyHabits: [HabitItem] { habits.filter { $0.frequency == .monthly } }
-
+    
     var body: some View {
         NavigationStack {
             ZStack {
-                (isDarkMode ? Color(white: 0.05) : Color(white: 0.96)).ignoresSafeArea()
+                (isDarkMode ? Color.black : Color.white).ignoresSafeArea()
                 
                 VStack(spacing: 0) {
                     
-                    // MODERN HEADER
                     HStack(alignment: .center) {
                         Text("Habits")
                             .font(.system(size: 34, weight: .bold, design: .rounded))
                             .foregroundColor(isDarkMode ? .white : .black)
                         Spacer()
                         Button(action: { showingAddSheet = true }) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 28))
+                            Image(systemName: "plus")
+                                .font(.system(size: 24, weight: .medium))
                                 .foregroundColor(.pink)
                         }
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 10)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 10)
                     
                     List {
-                        HabitSection(title: "Daily", habits: dailyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
-                        HabitSection(title: "Weekly", habits: weeklyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
-                        HabitSection(title: "Monthly", habits: monthlyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
+                        HabitSection(title: "DAILY", habits: dailyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
+                        HabitSection(title: "WEEKLY", habits: weeklyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
+                        HabitSection(title: "MONTHLY", habits: monthlyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
@@ -75,64 +74,55 @@ struct HabitSection: View {
                         Button(action: { toggleHabit(habit) }) {
                             Image(systemName: isCompleted(habit) ? "checkmark.circle.fill" : "circle")
                                 .foregroundColor(isCompleted(habit) ? .gray : .orange)
-                                .font(.title2)
+                                .font(.system(size: 22, weight: .light))
                         }
                         .buttonStyle(.plain)
                         
                         Text(habit.title)
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 17, weight: .regular))
                             .foregroundColor(isCompleted(habit) ? .gray : (isDarkMode ? .white : .black))
                             .strikethrough(isCompleted(habit))
                         
                         Spacer()
                         
-                        // NEW STREAK BADGE
                         HStack(spacing: 4) {
                             Text("\(habit.streak)")
                                 .font(.system(size: 14, weight: .bold, design: .rounded))
                             Image(systemName: "flame.fill")
                                 .font(.system(size: 12))
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(isCompleted(habit) ? Color.gray.opacity(0.2) : Color.orange.opacity(0.15))
-                        .foregroundColor(isCompleted(habit) ? .gray : .orange)
-                        .clipShape(Capsule())
+                        .foregroundColor(isCompleted(habit) ? .gray.opacity(0.6) : .orange)
+                        .padding(.trailing, 4)
                     }
-                    .padding(.vertical, 16)
-                    .padding(.horizontal, 20)
-                    // Card Styling
-                    .background(isDarkMode ? Color(white: 0.12) : Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .shadow(color: Color.black.opacity(isDarkMode ? 0.3 : 0.04), radius: 8, x: 0, y: 4)
-                    
+                    .opacity(isCompleted(habit) ? 0.5 : 1.0)
                     .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+                    .listRowSeparator(.visible)
+                    .listRowSeparatorTint(Color.gray.opacity(0.2))
+                    .listRowInsets(EdgeInsets(top: 14, leading: 24, bottom: 14, trailing: 24))
+                    // FIX: Changed from 62 to 0
+                    .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                     
-                    // Swipe Actions
                     .swipeActions(edge: .leading, allowsFullSwipe: true) {
                         if leftSwipeAction != .none {
                             Button { handleHabitSwipe(option: leftSwipeAction, habit: habit) }
                             label: { Label(leftSwipeAction.rawValue, systemImage: leftSwipeAction.icon) }
-                            .tint(leftSwipeAction.color)
+                                .tint(leftSwipeAction.color)
                         }
                     }
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         if rightSwipeAction != .none {
                             Button { handleHabitSwipe(option: rightSwipeAction, habit: habit) }
                             label: { Label(rightSwipeAction.rawValue, systemImage: rightSwipeAction.icon) }
-                            .tint(rightSwipeAction.color)
+                                .tint(rightSwipeAction.color)
                         }
                     }
                 }
             } header: {
                 Text(title)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundColor(.pink)
-                    .textCase(nil)
-                    .padding(.top, 8)
-                    .padding(.bottom, 4)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.pink.opacity(0.8))
+                    .padding(.leading, 4)
+                    .padding(.top, 16)
             }
         }
     }
@@ -155,9 +145,7 @@ struct HabitSection: View {
         
         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
             if isCompleted(habit) {
-                habit.completionDates.removeAll { date in
-                    calendar.isDate(date, equalTo: today, toGranularity: .day)
-                }
+                habit.completionDates.removeAll { date in calendar.isDate(date, equalTo: today, toGranularity: .day) }
                 hapticSound.triggerHapticSelection()
                 hapticSound.playSuccessSound()
             } else {
@@ -172,14 +160,12 @@ struct HabitSection: View {
     
     private func handleHabitSwipe(option: SwipeOption, habit: HabitItem) {
         switch option {
-        case .edit:
-            editAction(habit)
+        case .edit: editAction(habit)
         case .delete:
             modelContext.delete(habit)
             try? modelContext.save()
             WidgetCenter.shared.reloadAllTimelines()
-        case .toggle:
-            toggleHabit(habit)
+        case .toggle: toggleHabit(habit)
         case .none: break
         }
     }

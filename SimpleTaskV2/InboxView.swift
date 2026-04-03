@@ -39,30 +39,28 @@ struct InboxView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // Main Background
-                (isDarkMode ? Color(white: 0.05) : Color(white: 0.96)).ignoresSafeArea()
+                (isDarkMode ? Color.black : Color.white).ignoresSafeArea()
                 
                 VStack(spacing: 0) {
                     
-                    // MODERN HEADER
                     HStack(alignment: .center) {
-                        Spacer().frame(width: 44) // Hamburger placeholder
+                        Spacer().frame(width: 44)
                         Text("Inbox")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
                             .foregroundColor(isDarkMode ? .white : .black)
                         Spacer()
                         Button(action: {
                             hapticSound.triggerHapticSelection()
                             showingAddSheet = true
                         }) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 28))
+                            Image(systemName: "plus")
+                                .font(.system(size: 24, weight: .medium))
                                 .foregroundColor(.pink)
                         }
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 10)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 10)
                     
                     List {
                         if !dueHabits.isEmpty {
@@ -72,32 +70,28 @@ struct InboxView: View {
                                         Button(action: { toggleHabit(habit) }) {
                                             Image(systemName: "circle")
                                                 .foregroundColor(.orange)
-                                                .font(.title2)
+                                                .font(.system(size: 22, weight: .light))
                                         }
                                         .buttonStyle(.plain)
                                         
                                         Text(habit.title)
-                                            .font(.system(size: 16, weight: .medium))
+                                            .font(.system(size: 17, weight: .regular))
                                             .foregroundColor(isDarkMode ? .white : .black)
                                         
                                         Spacer()
                                     }
-                                    .padding(.vertical, 16)
-                                    .padding(.horizontal, 20)
-                                    .background(isDarkMode ? Color(white: 0.12) : Color.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                    .shadow(color: Color.black.opacity(isDarkMode ? 0.3 : 0.04), radius: 8, x: 0, y: 4)
-                                    
                                     .listRowBackground(Color.clear)
-                                    .listRowSeparator(.hidden)
-                                    .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
+                                    .listRowSeparator(.visible)
+                                    .listRowSeparatorTint(Color.gray.opacity(0.2))
+                                    .listRowInsets(EdgeInsets(top: 14, leading: 24, bottom: 14, trailing: 24))
+                                    // FIX: Changed from 62 to 0 to stretch the line all the way left
+                                    .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                                 }
                             } header: {
-                                Text("Due Habits")
-                                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                                    .foregroundColor(.orange)
-                                    .textCase(nil)
-                                    .padding(.bottom, 4)
+                                Text("DUE HABITS")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.orange.opacity(0.8))
+                                    .padding(.leading, 4)
                             }
                         }
                         
@@ -110,8 +104,11 @@ struct InboxView: View {
                                     }
                                 }
                                 .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
-                                .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+                                .listRowSeparator(.visible)
+                                .listRowSeparatorTint(Color.gray.opacity(0.2))
+                                .listRowInsets(EdgeInsets(top: 14, leading: 24, bottom: 14, trailing: 24))
+                                // FIX: Changed from 62 to 0
+                                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                                 
                                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                     if leftSwipeAction != .none {
@@ -129,12 +126,11 @@ struct InboxView: View {
                                 }
                             }
                         } header: {
-                            Text("Tasks")
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
-                                .foregroundColor(.pink)
-                                .textCase(nil)
-                                .padding(.top, 8)
-                                .padding(.bottom, 4)
+                            Text("TASKS")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.pink.opacity(0.8))
+                                .padding(.leading, 4)
+                                .padding(.top, 16)
                         }
                     }
                     .listStyle(.plain)
@@ -246,7 +242,7 @@ struct InboxView: View {
 }
 
 // ---------------------------------------------------------
-// TASK ROW (CARD UI)
+// MINIMALIST TASK ROW (WITH INLINE SUBTASKS)
 // ---------------------------------------------------------
 struct TaskRowView: View {
     @Environment(\.modelContext) private var modelContext
@@ -257,7 +253,10 @@ struct TaskRowView: View {
     private let hapticSound = HapticAndSoundManager.shared
     
     var body: some View {
-        HStack(spacing: 16) {
+        // FIX: Changed alignment to .top so the main checkmark stays anchored to the title
+        HStack(alignment: .top, spacing: 16) {
+            
+            // 1. MAIN TASK CHECKMARK
             Button(action: {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                     task.isCompleted.toggle()
@@ -276,41 +275,75 @@ struct TaskRowView: View {
             }) {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundColor(task.isCompleted ? .gray : .pink)
-                    .font(.title2)
+                    .font(.system(size: 22, weight: .light))
             }
             .buttonStyle(.plain)
+            .padding(.top, 1) // Micro-adjustment to perfectly align with the text
             
-            Button(action: { onSelect() }) {
-                HStack {
-                    Text(task.title)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(task.isCompleted ? .gray : (isDarkMode ? .white : .black))
-                        .strikethrough(task.isCompleted)
-                    
-                    Spacer()
-                    
-                    HStack(spacing: 8) {
-                        if !task.subtasks.isEmpty { Image(systemName: "checklist").font(.caption) }
-                        if !task.notes.isEmpty { Image(systemName: "text.alignleft").font(.caption) }
-                        if task.imageData != nil { Image(systemName: "photo").font(.caption) }
+            // 2. TASK CONTENT (Title + Subtasks)
+            VStack(alignment: .leading, spacing: 6) {
+                
+                // Main Title Row
+                Button(action: { onSelect() }) {
+                    HStack {
+                        Text(task.title)
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundColor(task.isCompleted ? .gray : (isDarkMode ? .white : .black))
+                            .strikethrough(task.isCompleted)
+                        
+                        Spacer()
+                        
+                        // Icons (Checklist removed since we show it inline now)
+                        HStack(spacing: 8) {
+                            if !task.notes.isEmpty { Image(systemName: "text.alignleft").font(.caption) }
+                            if task.imageData != nil { Image(systemName: "photo").font(.caption) }
+                        }
+                        .foregroundColor(.gray.opacity(0.5))
                     }
-                    .foregroundColor(.gray.opacity(0.5))
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                
+                // 3. INLINE SUBTASKS (Unobtrusive & Interactive)
+                if !task.subtasks.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(task.subtasks) { subtask in
+                            HStack(alignment: .center, spacing: 8) {
+                                
+                                // Interactive Mini-Checkmark
+                                Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(subtask.isCompleted ? .gray.opacity(0.4) : .pink.opacity(0.5))
+                                    .onTapGesture {
+                                        hapticSound.triggerHapticSelection()
+                                        withAnimation { subtask.isCompleted.toggle() }
+                                        if subtask.isCompleted { hapticSound.playSuccessSound() }
+                                        try? modelContext.save()
+                                        WidgetCenter.shared.reloadAllTimelines()
+                                    }
+                                
+                                Text(subtask.title)
+                                    .font(.system(size: 14, weight: .regular))
+                                    .foregroundColor(subtask.isCompleted ? .gray.opacity(0.4) : .gray)
+                                    .strikethrough(subtask.isCompleted)
+                                    .lineLimit(1)
+                                    .onTapGesture {
+                                        onSelect() // Tapping the text still safely opens the menu
+                                    }
+                            }
+                        }
+                    }
+                    .padding(.top, 2)
+                    .padding(.bottom, 4)
+                }
             }
-            .buttonStyle(.plain)
         }
-        .padding(.vertical, 16)
-        .padding(.horizontal, 20)
-        // Card Styling
-        .background(isDarkMode ? Color(white: 0.12) : Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: Color.black.opacity(isDarkMode ? 0.3 : 0.04), radius: 8, x: 0, y: 4)
+        .opacity(task.isCompleted ? 0.5 : 1.0)
     }
 }
 
 // ---------------------------------------------------------
-// POPUP AND MENU HELPERS (RESTORED)
+// POPUP AND MENU HELPERS
 // ---------------------------------------------------------
 struct TaskDetailPopup: View {
     @Environment(\.modelContext) private var modelContext
@@ -324,7 +357,6 @@ struct TaskDetailPopup: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            
             VStack(spacing: 0) {
                 Capsule()
                     .fill(Color.gray.opacity(0.5))
@@ -343,15 +375,10 @@ struct TaskDetailPopup: View {
                 .padding(.bottom, 10)
             }
             .contentShape(Rectangle())
-            .gesture(
-                DragGesture().onEnded { value in
-                    if value.translation.height > 40 { dismissAction() }
-                }
-            )
+            .gesture(DragGesture().onEnded { value in if value.translation.height > 40 { dismissAction() } })
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Steps").font(.caption).bold().foregroundColor(.gray)
                         ForEach(task.subtasks) { subtask in
@@ -365,9 +392,7 @@ struct TaskDetailPopup: View {
                                         try? modelContext.save()
                                         WidgetCenter.shared.reloadAllTimelines()
                                     }
-                                Text(subtask.title)
-                                    .strikethrough(subtask.isCompleted)
-                                    .foregroundColor(isDarkMode ? .white : .black)
+                                Text(subtask.title).strikethrough(subtask.isCompleted).foregroundColor(isDarkMode ? .white : .black)
                             }
                         }
                         
@@ -388,9 +413,7 @@ struct TaskDetailPopup: View {
                                 }
                         }
                     }
-                    
                     Divider().background(Color.gray.opacity(0.3))
-                    
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Notes").font(.caption).bold().foregroundColor(.gray)
                         TextEditor(text: $task.notes)
@@ -402,29 +425,18 @@ struct TaskDetailPopup: View {
                             .foregroundColor(isDarkMode ? .white : .black)
                             .onChange(of: task.notes) { _, _ in try? modelContext.save() }
                     }
-                    
                     Divider().background(Color.gray.opacity(0.3))
-                    
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Attachment").font(.caption).bold().foregroundColor(.gray)
                         if let imageData = task.imageData, let uiImage = UIImage(data: imageData) {
                             Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 180)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .resizable().scaledToFill().frame(maxWidth: .infinity).frame(height: 180).clipShape(RoundedRectangle(cornerRadius: 12))
                                 .contextMenu {
                                     Button(role: .destructive) {
-                                        withAnimation {
-                                            task.imageData = nil
-                                            try? modelContext.save()
-                                            WidgetCenter.shared.reloadAllTimelines()
-                                        }
+                                        withAnimation { task.imageData = nil; try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines() }
                                     } label: { Label("Remove Image", systemImage: "trash") }
                                 }
                         }
-                        
                         PhotosPicker(selection: $selectedPhoto, matching: .images, photoLibrary: .shared()) {
                             HStack {
                                 Image(systemName: task.imageData == nil ? "photo.badge.plus" : "arrow.triangle.2.circlepath.camera")
@@ -436,20 +448,13 @@ struct TaskDetailPopup: View {
                         .onChange(of: selectedPhoto) { _, newItem in
                             Task {
                                 if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                                    await MainActor.run {
-                                        withAnimation {
-                                            task.imageData = data
-                                            try? modelContext.save()
-                                            WidgetCenter.shared.reloadAllTimelines()
-                                        }
-                                    }
+                                    await MainActor.run { withAnimation { task.imageData = data; try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines() } }
                                 }
                             }
                         }
                     }
                 }
                 .padding(20)
-                
                 Spacer().frame(height: 40)
             }
         }
@@ -461,7 +466,6 @@ struct TaskDetailPopup: View {
 struct HamburgerButton: View {
     @Binding var isOpen: Bool
     @AppStorage("isDarkMode") private var isDarkMode = true
-    
     var body: some View {
         Button(action: {
             HapticAndSoundManager.shared.triggerHapticSelection()
@@ -481,7 +485,6 @@ struct MenuLink: View {
     let title: String
     let icon: String
     @AppStorage("isDarkMode") private var isDarkMode = true
-    
     var body: some View {
         HStack(spacing: 20) {
             Image(systemName: icon).foregroundColor(.pink).font(.largeTitle).frame(width: 50)

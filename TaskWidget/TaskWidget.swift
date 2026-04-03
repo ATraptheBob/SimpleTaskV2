@@ -139,7 +139,7 @@ struct TaskWidgetEntryView : View {
     var entry: Provider.Entry
     
     @Environment(\.widgetFamily) var family
-    
+
     var body: some View {
         if family == .systemSmall {
             // THE ORIGINAL SMALL WIDGET
@@ -167,56 +167,59 @@ struct TaskWidgetEntryView : View {
             .containerBackground(Color(white: 0.05), for: .widget)
             
         } else {
-            // THE NEW SPLIT-SCREEN MEDIUM WIDGET
-            HStack(alignment: .top, spacing: 16) {
+            // THE ASYMMETRIC SPLIT-SCREEN MEDIUM WIDGET
+            HStack(alignment: .top, spacing: 14) {
                 
-                // LEFT COLUMN: Daily Status Summary
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Daily Status")
+                // LEFT COLUMN: Ultra-Compact Sidebar
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Tasks") // Changed from "Status"
                         .font(.headline)
                         .foregroundColor(.white)
+                        .minimumScaleFactor(0.8)
                     
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 16) { // Slightly increased vertical spacing between the two icons
+                        HStack(spacing: 6) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.pink)
-                            Text("\(entry.pendingTasksCount) Tasks Left")
-                                .font(.caption)
+                                .font(.subheadline) // Bumped up icon size slightly to match the bold numbers
+                            
+                            Text("\(entry.pendingTasksCount)") // Stripped text
+                                .font(.subheadline)
                                 .bold()
                                 .foregroundColor(.pink)
                         }
                         
-                        HStack(spacing: 8) {
+                        HStack(spacing: 6) {
                             Image(systemName: "flame.fill")
                                 .foregroundColor(.orange)
-                            Text("\(entry.pendingHabitsCount) Habits Due")
-                                .font(.caption)
+                                .font(.subheadline)
+                            
+                            Text("\(entry.pendingHabitsCount)") // Stripped text
+                                .font(.subheadline)
                                 .bold()
                                 .foregroundColor(.orange)
                         }
                     }
                     Spacer()
                 }
-                // Fixes the width of the left column so the divider stays perfectly anchored
-                .frame(width: 125, alignment: .leading)
+                // FIX: Shrunk dramatically from 85 down to 55
+                .frame(width: 55, alignment: .leading)
                 
                 // THE VERTICAL SEPARATOR
                 Divider()
                     .background(Color.gray.opacity(0.3))
                 
-                // RIGHT COLUMN: Interactive Task List
+                // RIGHT COLUMN: Expanded Interactive Task List
                 VStack(spacing: 0) {
                     if entry.topTasks.isEmpty {
                         Spacer()
                         Text("All caught up! 🎉").foregroundColor(.gray).font(.caption)
                         Spacer()
                     } else {
-                        // Limit to 3 tasks so they perfectly fill the vertical space without clipping
                         ForEach(Array(entry.topTasks.prefix(3).enumerated()), id: \.element.id) { index, task in
                             VStack(spacing: 0) {
                                 HStack(alignment: .center, spacing: 12) {
                                     
-                                    // INTERACTIVE BUTTON
                                     Button(intent: ToggleTaskIntent(taskID: task.id)) {
                                         if task.isCompleted {
                                             Image(systemName: "checkmark.circle.fill")
@@ -231,20 +234,19 @@ struct TaskWidgetEntryView : View {
                                     .buttonStyle(.plain)
                                     
                                     Text(task.title)
-                                        .font(.system(size: 13, weight: .medium))
+                                        .font(.system(size: 14, weight: .medium))
                                         .foregroundColor(task.isCompleted ? .gray : .white)
                                         .strikethrough(task.isCompleted, color: .gray)
                                         .lineLimit(1)
                                     
                                     Spacer(minLength: 0)
                                 }
-                                .padding(.vertical, 10) // Spreads the 3 tasks out beautifully
+                                .padding(.vertical, 10)
                                 
-                                // INSET DIVIDER
                                 if index < min(entry.topTasks.count, 3) - 1 {
                                     Divider()
                                         .background(Color.gray.opacity(0.3))
-                                        .padding(.leading, 30) // 18 (circle width) + 12 (spacing)
+                                        .padding(.leading, 30)
                                 }
                             }
                         }

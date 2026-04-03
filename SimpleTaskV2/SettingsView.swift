@@ -101,5 +101,6 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
         }
         .navigationTitle("Settings")
+        .toolbar(.hidden, for: .tabBar)
     }
 }

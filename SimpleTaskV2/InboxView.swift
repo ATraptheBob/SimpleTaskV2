@@ -191,7 +191,7 @@ struct InboxView: View {
                 }
             }
             .navigationBarHidden(true)
-            .toolbar(isMenuOpen || selectedTask != nil ? .hidden : .visible, for: .tabBar)
+            .toolbar(isMenuOpen || selectedTask != nil ? .hidden : .automatic, for: .tabBar)
             .sheet(isPresented: $showingAddSheet) { AddTaskView() }
         }
     }

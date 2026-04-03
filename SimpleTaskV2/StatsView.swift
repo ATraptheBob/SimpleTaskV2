@@ -110,6 +110,7 @@ struct StatsView: View {
                 }
             }
             .navigationTitle("Analytics")
+            .toolbar(.hidden, for: .tabBar)
         }
     }
 }

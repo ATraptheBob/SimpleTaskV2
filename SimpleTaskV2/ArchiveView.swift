@@ -33,6 +33,7 @@ struct ArchiveView: View {
                 }
             }
             .navigationTitle("Archive")
+            .toolbar(.hidden, for: .tabBar)
         }
     }
 }

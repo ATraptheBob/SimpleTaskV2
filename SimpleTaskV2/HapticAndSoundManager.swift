@@ -1,63 +1,54 @@
 import SwiftUI
-import AVFoundation
+import AudioToolbox // Required for clean, non-vibrating system sounds
 
 class HapticAndSoundManager {
     static let shared = HapticAndSoundManager()
     
-    private init() {} // Prevents accidental duplicate managers
+    private init() {}
     
-    // 1. THE FIX: Look directly into UserDefaults to see what the user chose
     private var isHapticsEnabled: Bool {
-        // If the setting has never been touched, default to true
-        if UserDefaults.standard.object(forKey: "enableHaptics") == nil {
-            return true
-        }
+        if UserDefaults.standard.object(forKey: "enableHaptics") == nil { return true }
         return UserDefaults.standard.bool(forKey: "enableHaptics")
     }
     
     private var isSoundEnabled: Bool {
-        if UserDefaults.standard.object(forKey: "enableSounds") == nil {
-            return true
-        }
+        if UserDefaults.standard.object(forKey: "enableSounds") == nil { return true }
         return UserDefaults.standard.bool(forKey: "enableSounds")
     }
     
     // ---------------------------------------------------------
-    // HAPTICS (Upgraded for stronger feedback)
+    // HAPTICS
     // ---------------------------------------------------------
     
     func triggerHapticSelection() {
         guard isHapticsEnabled else { return }
-        
-        // UPGRADE: Changed from standard UISelectionFeedbackGenerator
-        // to a .medium impact so you actually feel the thump when tapping buttons
-        let generator = UIImpactFeedbackGenerator(style: .medium)
+        // A very light, subtle tap (great for un-checking boxes)
+        let generator = UIImpactFeedbackGenerator(style: .light)
         generator.prepare()
         generator.impactOccurred()
     }
     
     func triggerHapticSuccess() {
         guard isHapticsEnabled else { return }
-        
-        // This provides a very distinct, strong double-tap vibration for completing tasks
-        let generator = UINotificationFeedbackGenerator()
+        // A single, forceful, instantaneous snap
+        let generator = UIImpactFeedbackGenerator(style: .rigid)
         generator.prepare()
-        generator.notificationOccurred(.success)
+        generator.impactOccurred()
     }
     
     // ---------------------------------------------------------
-    // SOUNDS
+    // SOUNDS (Zero built-in vibrations)
     // ---------------------------------------------------------
     
     func playSuccessSound() {
         guard isSoundEnabled else { return }
-        // 1001 is the standard iOS subtle pop/ding sound
-        AudioServicesPlaySystemSound(1001)
+        // 1104: The standard iOS keyboard "Tock"
+        AudioServicesPlaySystemSound(1104)
     }
     
     func playCompleteSound() {
         guard isSoundEnabled else { return }
-        // 1022 is a slightly more satisfying task-completion sound
-        AudioServicesPlaySystemSound(1022)
+        // 1105: A slightly higher pitched, crisp "Tink"
+        AudioServicesPlaySystemSound(1105)
     }
 }

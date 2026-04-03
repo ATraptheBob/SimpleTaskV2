@@ -6,6 +6,8 @@ struct AddTaskView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("isDarkMode") private var isDarkMode = true
     
+    @FocusState private var isTitleFocused: Bool
+    
     @State private var title = ""
     @State private var dueDate = Date()
     @State private var repeatInterval: RepeatInterval = .none
@@ -18,6 +20,7 @@ struct AddTaskView: View {
                 Form {
                     Section(header: Text("Task Details").foregroundColor(.gray)) {
                         TextField("Task Title", text: $title)
+                            .focused($isTitleFocused)
                             .foregroundColor(.green)
                         
                         DatePicker("Due Date", selection: $dueDate)
@@ -35,6 +38,9 @@ struct AddTaskView: View {
                 .scrollContentBackground(.hidden)
             }
             .navigationTitle("New Task")
+            .onAppear {
+                            isTitleFocused = true
+                        }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {

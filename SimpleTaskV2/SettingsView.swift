@@ -5,6 +5,9 @@ struct SettingsView: View {
     @AppStorage("pomodoroDuration") private var pomodoroDuration = 25
     @AppStorage("breakDuration") private var breakDuration = 5
     
+    @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .edit
+    @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
+    
     // Preferences
     @AppStorage("isDarkMode") private var isDarkMode = true
     @AppStorage("enableHaptics") private var enableHaptics = true
@@ -36,6 +39,20 @@ struct SettingsView: View {
                     }
                 }
                 .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
+                
+                Section(header: Text("Swipe Actions").foregroundColor(.gray)) {
+                    Picker("Swipe Right ➡️", selection: $leftSwipeAction) {
+                        ForEach(SwipeOption.allCases, id: \.self) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    
+                    Picker("Swipe Left ⬅️", selection: $rightSwipeAction) {
+                        ForEach(SwipeOption.allCases, id: \.self) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                }
                 
                 Section(header: Text("Preferences").foregroundColor(.gray)) {
                     Toggle(isOn: $isDarkMode) {

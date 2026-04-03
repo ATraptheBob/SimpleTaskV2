@@ -13,7 +13,11 @@ struct InboxView: View {
     @State private var selectedTask: TaskItem?
     
     private let hapticSound = HapticAndSoundManager.shared
+    
+    // Preferences & Swipe Settings
     @AppStorage("isDarkMode") private var isDarkMode = true
+    @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .edit
+    @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
 
     var activeTasks: [TaskItem] {
         let filtered = allTasks.filter { task in
@@ -94,6 +98,27 @@ struct InboxView: View {
                                 }
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
+                                // THE SWIPE ACTIONS ARE NOW CORRECTLY ATTACHED HERE
+                                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                    if leftSwipeAction != .none {
+                                        Button {
+                                            handleTaskSwipe(option: leftSwipeAction, task: task)
+                                        } label: {
+                                            Label(leftSwipeAction.rawValue, systemImage: leftSwipeAction.icon)
+                                        }
+                                        .tint(leftSwipeAction.color)
+                                    }
+                                }
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    if rightSwipeAction != .none {
+                                        Button {
+                                            handleTaskSwipe(option: rightSwipeAction, task: task)
+                                        } label: {
+                                            Label(rightSwipeAction.rawValue, systemImage: rightSwipeAction.icon)
+                                        }
+                                        .tint(rightSwipeAction.color)
+                                    }
+                                }
                             }
                         }
                     }
@@ -103,7 +128,6 @@ struct InboxView: View {
                 
                 // LAYER 2: THE GLITCH-FREE MENU
                 ZStack {
-                    // The Bubble Background
                     VStack {
                         HStack {
                             Circle()
@@ -120,8 +144,6 @@ struct InboxView: View {
                     }
                     .ignoresSafeArea(.all, edges: .bottom)
                     
-                    // FIX: Replaced `if isMenuOpen` with opacity & scale modifiers.
-                    // This prevents SwiftUI from un-mounting the buttons, destroying the double-blink bug forever.
                     VStack(alignment: .center, spacing: 50) {
                         NavigationLink(destination: ArchiveView().toolbar(.hidden, for: .tabBar)) { MenuLink(title: "Archive", icon: "archivebox") }
                             .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
@@ -189,8 +211,30 @@ struct InboxView: View {
             selectedTask = nil
         }
     }
-}
-
+    
+    // THIS FUNCTION IS NOW SAFELY INSIDE THE INBOXVIEW
+        private func handleTaskSwipe(option: SwipeOption, task: TaskItem) {
+            switch option {
+            case .edit:
+                // FIX: Removed showingAddSheet = true. Now it just smoothly opens the popup!
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                    selectedTask = task
+                }
+            case .delete:
+                modelContext.delete(task)
+                try? modelContext.save()
+                WidgetCenter.shared.reloadAllTimelines()
+            case .toggle:
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    task.isCompleted.toggle()
+                    task.completionDate = task.isCompleted ? Date() : nil
+                    try? modelContext.save()
+                    WidgetCenter.shared.reloadAllTimelines()
+                }
+            case .none:
+                break
+            }
+        }
 // ---------------------------------------------------------
 // TASK ROW & POPUP
 // ---------------------------------------------------------
@@ -205,22 +249,19 @@ struct TaskRowView: View {
     var body: some View {
         HStack(spacing: 12) {
             Button(action: {
-                            hapticSound.triggerHapticSelection()
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                                task.isCompleted.toggle()
-                                task.completionDate = task.isCompleted ? Date() : nil
-                                try? modelContext.save()
-                                
-                                // Updates the widget
-                                WidgetCenter.shared.reloadAllTimelines()
-                            }
-                            
-                            if task.isCompleted {
-                                hapticSound.playCompleteSound()
-                                // NEW: Trigger the test notification!
-                                NotificationManager.shared.sendTestTaskNotification(taskTitle: task.title)
-                            }
-                        }) {
+                hapticSound.triggerHapticSelection()
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    task.isCompleted.toggle()
+                    task.completionDate = task.isCompleted ? Date() : nil
+                    try? modelContext.save()
+                    WidgetCenter.shared.reloadAllTimelines()
+                }
+                
+                if task.isCompleted {
+                    hapticSound.playCompleteSound()
+                    NotificationManager.shared.sendTestTaskNotification(taskTitle: task.title)
+                }
+            }) {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundColor(task.isCompleted ? .gray : .pink)
                     .font(.title2)
@@ -250,140 +291,155 @@ struct TaskRowView: View {
     }
 }
 
-struct TaskDetailPopup: View {
-    @Environment(\.modelContext) private var modelContext
-    @Bindable var task: TaskItem
-    let isDarkMode: Bool
-    var dismissAction: () -> Void
-    
-    @State private var newSubtaskTitle = ""
-    @State private var selectedPhoto: PhotosPickerItem?
-    private let hapticSound = HapticAndSoundManager.shared
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            Capsule()
-                .fill(Color.gray.opacity(0.5))
-                .frame(width: 40, height: 5)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
-            
-            HStack {
-                Text(task.title).font(.headline).foregroundColor(isDarkMode ? .white : .black)
-                Spacer()
-                Button(action: dismissAction) {
-                    Image(systemName: "xmark.circle.fill").font(.title2).foregroundColor(.gray)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 10)
-            
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Steps").font(.caption).bold().foregroundColor(.gray)
-                        ForEach(task.subtasks) { subtask in
-                            HStack {
-                                Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
-                                    .foregroundColor(subtask.isCompleted ? .green : .gray)
-                                    .onTapGesture {
-                                        hapticSound.triggerHapticSelection()
-                                        withAnimation { subtask.isCompleted.toggle() }
-                                        if subtask.isCompleted { hapticSound.playSuccessSound() }
-                                        try? modelContext.save()
-                                        WidgetCenter.shared.reloadAllTimelines()
-                                    }
-                                Text(subtask.title)
-                                    .strikethrough(subtask.isCompleted)
-                                    .foregroundColor(isDarkMode ? .white : .black)
-                            }
-                        }
-                        
-                        HStack {
-                            Image(systemName: "plus.circle").foregroundColor(.gray)
-                            TextField("Add step...", text: $newSubtaskTitle)
-                                .foregroundColor(isDarkMode ? .white : .black)
-                                .onSubmit {
-                                    if !newSubtaskTitle.isEmpty {
-                                        hapticSound.triggerHapticSuccess()
-                                        withAnimation {
-                                            task.subtasks.append(SubtaskItem(title: newSubtaskTitle))
-                                            newSubtaskTitle = ""
-                                            try? modelContext.save()
-                                            WidgetCenter.shared.reloadAllTimelines()
-                                        }
-                                    }
-                                }
-                        }
-                    }
-                    
-                    Divider().background(Color.gray.opacity(0.3))
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Notes").font(.caption).bold().foregroundColor(.gray)
-                        TextEditor(text: $task.notes)
-                            .frame(minHeight: 100)
-                            .scrollContentBackground(.hidden)
-                            .padding(8)
-                            .background(isDarkMode ? Color(white: 0.08) : Color.white)
-                            .cornerRadius(8)
-                            .foregroundColor(isDarkMode ? .white : .black)
-                            .onChange(of: task.notes) { _, _ in try? modelContext.save() }
-                    }
-                    
-                    Divider().background(Color.gray.opacity(0.3))
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Attachment").font(.caption).bold().foregroundColor(.gray)
-                        if let imageData = task.imageData, let uiImage = UIImage(data: imageData) {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 180)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .contextMenu {
-                                    Button(role: .destructive) {
-                                        withAnimation {
-                                            task.imageData = nil
-                                            try? modelContext.save()
-                                            WidgetCenter.shared.reloadAllTimelines()
-                                        }
-                                    } label: { Label("Remove Image", systemImage: "trash") }
-                                }
-                        }
-                        
-                        PhotosPicker(selection: $selectedPhoto, matching: .images, photoLibrary: .shared()) {
-                            HStack {
-                                Image(systemName: task.imageData == nil ? "photo.badge.plus" : "arrow.triangle.2.circlepath.camera")
-                                Text(task.imageData == nil ? "Attach Image" : "Change Image")
-                            }
-                            .font(.subheadline).bold().foregroundColor(.pink)
-                            .padding(.vertical, 8)
-                        }
-                        .onChange(of: selectedPhoto) { _, newItem in
-                            Task {
-                                if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                                    await MainActor.run {
-                                        withAnimation {
-                                            task.imageData = data
-                                            try? modelContext.save()
-                                            WidgetCenter.shared.reloadAllTimelines()
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(20)
+    struct TaskDetailPopup: View {
+        @Environment(\.modelContext) private var modelContext
+        @Bindable var task: TaskItem
+        let isDarkMode: Bool
+        var dismissAction: () -> Void
+        
+        @State private var newSubtaskTitle = ""
+        @State private var selectedPhoto: PhotosPickerItem?
+        private let hapticSound = HapticAndSoundManager.shared
+        
+        var body: some View {
+            VStack(spacing: 0) {
                 
-                Spacer().frame(height: 40)
+                // FIX: Wrapped the top bar in its own VStack to handle the swipe-down gesture
+                VStack(spacing: 0) {
+                    Capsule()
+                        .fill(Color.gray.opacity(0.5))
+                        .frame(width: 40, height: 5)
+                        .padding(.top, 12)
+                        .padding(.bottom, 8)
+                    
+                    HStack {
+                        Text(task.title).font(.headline).foregroundColor(isDarkMode ? .white : .black)
+                        Spacer()
+                        Button(action: dismissAction) {
+                            Image(systemName: "xmark.circle.fill").font(.title2).foregroundColor(.gray)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 10)
+                }
+                .contentShape(Rectangle()) // Ensures tapping in the empty space works
+                .gesture(
+                    DragGesture().onEnded { value in
+                        // If the user drags downward more than 40 pixels, dismiss it
+                        if value.translation.height > 40 {
+                            dismissAction()
+                        }
+                    }
+                )
+                
+                ScrollView {
+                    // ... The rest of your ScrollView code stays exactly the same ...
+                    VStack(alignment: .leading, spacing: 24) {
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Steps").font(.caption).bold().foregroundColor(.gray)
+                            ForEach(task.subtasks) { subtask in
+                                HStack {
+                                    Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(subtask.isCompleted ? .green : .gray)
+                                        .onTapGesture {
+                                            hapticSound.triggerHapticSelection()
+                                            withAnimation { subtask.isCompleted.toggle() }
+                                            if subtask.isCompleted { hapticSound.playSuccessSound() }
+                                            try? modelContext.save()
+                                            WidgetCenter.shared.reloadAllTimelines()
+                                        }
+                                    Text(subtask.title)
+                                        .strikethrough(subtask.isCompleted)
+                                        .foregroundColor(isDarkMode ? .white : .black)
+                                }
+                            }
+                            
+                            HStack {
+                                Image(systemName: "plus.circle").foregroundColor(.gray)
+                                TextField("Add step...", text: $newSubtaskTitle)
+                                    .foregroundColor(isDarkMode ? .white : .black)
+                                    .onSubmit {
+                                        if !newSubtaskTitle.isEmpty {
+                                            hapticSound.triggerHapticSuccess()
+                                            withAnimation {
+                                                task.subtasks.append(SubtaskItem(title: newSubtaskTitle))
+                                                newSubtaskTitle = ""
+                                                try? modelContext.save()
+                                                WidgetCenter.shared.reloadAllTimelines()
+                                            }
+                                        }
+                                    }
+                            }
+                        }
+                        
+                        Divider().background(Color.gray.opacity(0.3))
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Notes").font(.caption).bold().foregroundColor(.gray)
+                            TextEditor(text: $task.notes)
+                                .frame(minHeight: 100)
+                                .scrollContentBackground(.hidden)
+                                .padding(8)
+                                .background(isDarkMode ? Color(white: 0.08) : Color.white)
+                                .cornerRadius(8)
+                                .foregroundColor(isDarkMode ? .white : .black)
+                                .onChange(of: task.notes) { _, _ in try? modelContext.save() }
+                        }
+                        
+                        Divider().background(Color.gray.opacity(0.3))
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Attachment").font(.caption).bold().foregroundColor(.gray)
+                            if let imageData = task.imageData, let uiImage = UIImage(data: imageData) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 180)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .contextMenu {
+                                        Button(role: .destructive) {
+                                            withAnimation {
+                                                task.imageData = nil
+                                                try? modelContext.save()
+                                                WidgetCenter.shared.reloadAllTimelines()
+                                            }
+                                        } label: { Label("Remove Image", systemImage: "trash") }
+                                    }
+                            }
+                            
+                            PhotosPicker(selection: $selectedPhoto, matching: .images, photoLibrary: .shared()) {
+                                HStack {
+                                    Image(systemName: task.imageData == nil ? "photo.badge.plus" : "arrow.triangle.2.circlepath.camera")
+                                    Text(task.imageData == nil ? "Attach Image" : "Change Image")
+                                }
+                                .font(.subheadline).bold().foregroundColor(.pink)
+                                .padding(.vertical, 8)
+                            }
+                            .onChange(of: selectedPhoto) { _, newItem in
+                                Task {
+                                    if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                                        await MainActor.run {
+                                            withAnimation {
+                                                task.imageData = data
+                                                try? modelContext.save()
+                                                WidgetCenter.shared.reloadAllTimelines()
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(20)
+                    
+                    Spacer().frame(height: 40)
+                }
             }
+            .background(isDarkMode ? Color(white: 0.15) : Color(white: 0.95))
+            .clipShape(RoundedRectangle(cornerRadius: 30))
         }
-        .background(isDarkMode ? Color(white: 0.15) : Color(white: 0.95))
-        .clipShape(RoundedRectangle(cornerRadius: 30))
     }
 }
 

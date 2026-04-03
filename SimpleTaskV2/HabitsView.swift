@@ -40,6 +40,11 @@ struct HabitsView: View {
 }
 
 struct HabitSection: View {
+    // 1. We brought the context and settings INSIDE the section
+    @Environment(\.modelContext) private var modelContext
+    @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .edit
+    @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
+    
     let title: String
     let habits: [HabitItem]
     let editAction: (HabitItem) -> Void
@@ -50,7 +55,6 @@ struct HabitSection: View {
         if !habits.isEmpty {
             Section(header: Text(title).foregroundColor(.pink).bold()) {
                 ForEach(habits) { habit in
-                    // FIX: UI is now identical to TaskRowView
                     HStack(spacing: 12) {
                         Button(action: { toggleHabit(habit) }) {
                             Image(systemName: isCompleted(habit) ? "checkmark.circle.fill" : "circle")
@@ -71,8 +75,25 @@ struct HabitSection: View {
                     .padding(.vertical, 8)
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-                    .swipeActions(edge: .trailing) {
-                        Button { editAction(habit) } label: { Label("Edit", systemImage: "pencil") }.tint(.blue)
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        if leftSwipeAction != .none {
+                            Button {
+                                handleHabitSwipe(option: leftSwipeAction, habit: habit)
+                            } label: {
+                                Label(leftSwipeAction.rawValue, systemImage: leftSwipeAction.icon)
+                            }
+                            .tint(leftSwipeAction.color)
+                        }
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        if rightSwipeAction != .none {
+                            Button {
+                                handleHabitSwipe(option: rightSwipeAction, habit: habit)
+                            } label: {
+                                Label(rightSwipeAction.rawValue, systemImage: rightSwipeAction.icon)
+                            }
+                            .tint(rightSwipeAction.color)
+                        }
                     }
                 }
             }
@@ -106,6 +127,25 @@ struct HabitSection: View {
                 hapticSound.playSuccessSound()
                 habit.completionDates.append(Date())
             }
+            // Ensure we save and update widgets when toggled directly
+            try? modelContext.save()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+    }
+    
+    // 2. The swipe handler is now inside the struct so it can access everything
+    private func handleHabitSwipe(option: SwipeOption, habit: HabitItem) {
+        switch option {
+        case .edit:
+            editAction(habit) // Triggers the sheet passed down from HabitsView
+        case .delete:
+            modelContext.delete(habit)
+            try? modelContext.save()
+            WidgetCenter.shared.reloadAllTimelines()
+        case .toggle:
+            toggleHabit(habit)
+        case .none:
+            break
         }
     }
 }

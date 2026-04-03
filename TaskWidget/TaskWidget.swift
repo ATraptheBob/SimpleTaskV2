@@ -68,19 +68,19 @@ struct SimpleEntry: TimelineEntry {
 // 3. THE TIMELINE PROVIDER
 // ---------------------------------------------------------
 struct Provider: TimelineProvider {
-
+    
     func placeholder(in context: Context) -> SimpleEntry {
         SimpleEntry(date: Date(), pendingTasksCount: 3, pendingHabitsCount: 2, topTasks: [
             WidgetTaskInfo(id: "1", title: "Read Chapter 4", isCompleted: false),
             WidgetTaskInfo(id: "2", title: "Submit CS Project", isCompleted: false)
         ])
     }
-
+    
     func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
         let entry = SimpleEntry(date: Date(), pendingTasksCount: 3, pendingHabitsCount: 2, topTasks: [])
         completion(entry)
     }
-
+    
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
         Task { @MainActor in
             do {
@@ -104,7 +104,7 @@ struct Provider: TimelineProvider {
                 let descriptorHabits = FetchDescriptor<HabitItem>()
                 let allHabits = (try? container.mainContext.fetch(descriptorHabits)) ?? []
                 let dueHabitsCount = allHabits.filter { !isHabitDone($0) }.count
-
+                
                 let entry = SimpleEntry(date: Date(), pendingTasksCount: activeTasks.count, pendingHabitsCount: dueHabitsCount, topTasks: Array(topTasks))
                 
                 let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date())!
@@ -139,7 +139,7 @@ struct TaskWidgetEntryView : View {
     var entry: Provider.Entry
     
     @Environment(\.widgetFamily) var family
-
+    
     var body: some View {
         if family == .systemSmall {
             // THE ORIGINAL SMALL WIDGET
@@ -151,12 +151,12 @@ struct TaskWidgetEntryView : View {
                 Divider().background(Color.gray.opacity(0.3))
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Image(systemName: entry.pendingTasksCount > 0 ? "circle" : "checkmark.circle.fill")
+                        Image(systemName: entry.pendingTasksCount > 0 ? "checkmark.circle.fill" : "checkmark.circle.fill")
                             .foregroundColor(entry.pendingTasksCount > 0 ? .pink : .green)
                         Text("\(entry.pendingTasksCount) Tasks Left").foregroundColor(.gray).font(.subheadline).bold()
                     }
                     HStack {
-                        Image(systemName: entry.pendingHabitsCount > 0 ? "flame" : "flame.fill")
+                        Image(systemName: entry.pendingHabitsCount > 0 ? "flame.fill" : "flame.fill")
                             .foregroundColor(entry.pendingHabitsCount > 0 ? .orange : .gray)
                         Text("\(entry.pendingHabitsCount) Habits Due").foregroundColor(.gray).font(.subheadline).bold()
                     }
@@ -167,74 +167,93 @@ struct TaskWidgetEntryView : View {
             .containerBackground(Color(white: 0.05), for: .widget)
             
         } else {
-            // THE REMINDERS-STYLE MEDIUM WIDGET
-            VStack(alignment: .leading, spacing: 0) {
+            // THE NEW SPLIT-SCREEN MEDIUM WIDGET
+            HStack(alignment: .top, spacing: 16) {
                 
-                // The Reminders Header
-                HStack(alignment: .bottom) {
-                    Text("Tasks")
+                // LEFT COLUMN: Daily Status Summary
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Daily Status")
                         .font(.headline)
-                        .foregroundColor(.pink)
-                    Spacer()
-                    Text("\(entry.pendingTasksCount)")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundColor(Color.gray.opacity(0.6))
-                        .offset(y: 4)
-                }
-                .padding(.bottom, 8)
-                
-                if entry.topTasks.isEmpty {
-                    VStack {
-                        Spacer()
-                        Text("All tasks completed").foregroundColor(.gray).font(.subheadline)
-                        Spacer()
+                        .foregroundColor(.white)
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.pink)
+                            Text("\(entry.pendingTasksCount) Tasks Left")
+                                .font(.caption)
+                                .bold()
+                                .foregroundColor(.pink)
+                        }
+                        
+                        HStack(spacing: 8) {
+                            Image(systemName: "flame.fill")
+                                .foregroundColor(.orange)
+                            Text("\(entry.pendingHabitsCount) Habits Due")
+                                .font(.caption)
+                                .bold()
+                                .foregroundColor(.orange)
+                        }
                     }
-                    .frame(maxWidth: .infinity, alignment: .center)
-                } else {
-                    VStack(spacing: 0) {
-                        ForEach(Array(entry.topTasks.enumerated()), id: \.element.id) { index, task in
+                    Spacer()
+                }
+                // Fixes the width of the left column so the divider stays perfectly anchored
+                .frame(width: 125, alignment: .leading)
+                
+                // THE VERTICAL SEPARATOR
+                Divider()
+                    .background(Color.gray.opacity(0.3))
+                
+                // RIGHT COLUMN: Interactive Task List
+                VStack(spacing: 0) {
+                    if entry.topTasks.isEmpty {
+                        Spacer()
+                        Text("All caught up! 🎉").foregroundColor(.gray).font(.caption)
+                        Spacer()
+                    } else {
+                        // Limit to 3 tasks so they perfectly fill the vertical space without clipping
+                        ForEach(Array(entry.topTasks.prefix(3).enumerated()), id: \.element.id) { index, task in
                             VStack(spacing: 0) {
                                 HStack(alignment: .center, spacing: 12) {
                                     
-                                    // THE INTERACTIVE BUTTON
+                                    // INTERACTIVE BUTTON
                                     Button(intent: ToggleTaskIntent(taskID: task.id)) {
                                         if task.isCompleted {
                                             Image(systemName: "checkmark.circle.fill")
-                                                .font(.system(size: 20))
+                                                .font(.system(size: 18))
                                                 .foregroundColor(.pink)
                                         } else {
                                             Circle()
                                                 .strokeBorder(Color.gray.opacity(0.4), lineWidth: 1.5)
-                                                .frame(width: 20, height: 20)
+                                                .frame(width: 18, height: 18)
                                         }
                                     }
                                     .buttonStyle(.plain)
                                     
                                     Text(task.title)
-                                        .font(.system(size: 15, weight: .regular))
+                                        .font(.system(size: 13, weight: .medium))
                                         .foregroundColor(task.isCompleted ? .gray : .white)
                                         .strikethrough(task.isCompleted, color: .gray)
                                         .lineLimit(1)
                                     
-                                    Spacer()
+                                    Spacer(minLength: 0)
                                 }
-                                .padding(.vertical, 8)
+                                .padding(.vertical, 10) // Spreads the 3 tasks out beautifully
                                 
-                                if index < entry.topTasks.count - 1 {
+                                // INSET DIVIDER
+                                if index < min(entry.topTasks.count, 3) - 1 {
                                     Divider()
                                         .background(Color.gray.opacity(0.3))
-                                        .padding(.leading, 32)
+                                        .padding(.leading, 30) // 18 (circle width) + 12 (spacing)
                                 }
                             }
                         }
                     }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
             }
-            // FIX: Shrunk horizontal padding from 16 down to 4 to push everything outward
-            .padding(.horizontal, 4)
-            .padding(.top, 10)
-            .padding(.bottom, 6)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
             .containerBackground(Color(white: 0.10), for: .widget)
         }
     }
@@ -244,7 +263,7 @@ struct TaskWidgetEntryView : View {
 // ---------------------------------------------------------
 struct TaskWidget: Widget {
     let kind: String = "TaskWidget"
-
+    
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
             TaskWidgetEntryView(entry: entry)

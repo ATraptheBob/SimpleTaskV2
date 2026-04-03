@@ -40,28 +40,22 @@ struct SimpleTaskV2App: App {
         }
     }
 
-    var body: some Scene {
-        WindowGroup {
-            TabView {
-                // Main View (Contains the Hamburger Menu for Archive/Stats/Settings)
-                InboxView()
-                    .tabItem {
-                        Label("Inbox", systemImage: "tray.fill")
-                    }
-                
-                HabitsView()
-                    .tabItem {
-                        Label("Habits", systemImage: "flame.fill")
-                    }
-                
-                TimerView()
-                    .tabItem {
-                        Label("Focus", systemImage: "timer")
-                    }
+    // ... inside SimpleTaskV2App.swift ...
+        var body: some Scene {
+            WindowGroup {
+                TabView {
+                    InboxView().tabItem { Label("Inbox", systemImage: "tray.fill") }
+                    HabitsView().tabItem { Label("Habits", systemImage: "flame.fill") }
+                    TimerView().tabItem { Label("Focus", systemImage: "timer") }
+                }
+                .tint(.pink)
+                .preferredColorScheme(.dark)
+                // NEW: Ask for notification permission when the app starts
+                .onAppear {
+                    NotificationManager.shared.requestAuthorization()
+                }
             }
-            .tint(.pink)
-            .preferredColorScheme(.dark)
+            .modelContainer(container)
         }
-        .modelContainer(container)
-    }
+    // ...
 }

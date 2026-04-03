@@ -6,7 +6,7 @@ struct TimerView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     
-    @AppStorage("pomodoroDuration") private var sessionLength = 25
+    @AppStorage("pomodoroDuration") private var sessionLength = 1
     @AppStorage("isDarkMode") private var isDarkMode = true
     
     @AppStorage("targetEndTime") private var targetEndTime: Double = 0
@@ -205,37 +205,45 @@ struct TimerView: View {
     }
     
     private func toggleTimer() {
-        HapticAndSoundManager.shared.triggerHapticSelection()
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            timerRunning.toggle()
+            HapticAndSoundManager.shared.triggerHapticSelection()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                timerRunning.toggle()
+            }
+            
+            if timerRunning {
+                targetEndTime = Date().timeIntervalSince1970 + Double(timeRemaining)
+                // NEW: Schedule the notification!
+                NotificationManager.shared.scheduleTimerNotification(durationInSeconds: Double(timeRemaining))
+            } else {
+                storedTimeRemaining = timeRemaining
+                targetEndTime = 0
+                // NEW: Cancel the notification because we paused
+                NotificationManager.shared.cancelTimerNotification()
+            }
         }
-        
-        if timerRunning {
-            targetEndTime = Date().timeIntervalSince1970 + Double(timeRemaining)
-        } else {
-            storedTimeRemaining = timeRemaining
-            targetEndTime = 0
-        }
-    }
     
     private func resetTimer() {
-        withAnimation { timerRunning = false }
-        timeRemaining = sessionLength * 60
-        storedTimeRemaining = timeRemaining
-        targetEndTime = 0
-    }
+            withAnimation { timerRunning = false }
+            timeRemaining = sessionLength * 60
+            storedTimeRemaining = timeRemaining
+            targetEndTime = 0
+            // NEW: Cancel notification
+            NotificationManager.shared.cancelTimerNotification()
+        }
     
     private func endSessionEarly() {
-        HapticAndSoundManager.shared.triggerHapticSelection()
-        let elapsedMinutes = sessionLength - (timeRemaining / 60)
-        
-        if elapsedMinutes > 0 {
-            let session = PomodoroSession(durationMinutes: elapsedMinutes, subject: selectedSubject)
-            modelContext.insert(session)
-            try? modelContext.save()
+            HapticAndSoundManager.shared.triggerHapticSelection()
+            let elapsedMinutes = sessionLength - (timeRemaining / 60)
+            
+            if elapsedMinutes > 0 {
+                let session = PomodoroSession(durationMinutes: elapsedMinutes, subject: selectedSubject)
+                modelContext.insert(session)
+                try? modelContext.save()
+            }
+            // NEW: Cancel notification
+            NotificationManager.shared.cancelTimerNotification()
+            resetTimer()
         }
-        resetTimer()
-    }
     
     private func finishSession() {
         HapticAndSoundManager.shared.playCompleteSound()

@@ -205,15 +205,22 @@ struct TaskRowView: View {
     var body: some View {
         HStack(spacing: 12) {
             Button(action: {
-                hapticSound.triggerHapticSelection()
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                    task.isCompleted.toggle()
-                    task.completionDate = task.isCompleted ? Date() : nil
-                    try? modelContext.save()
-                    WidgetCenter.shared.reloadAllTimelines()
-                }
-                if task.isCompleted { hapticSound.playCompleteSound() }
-            }) {
+                            hapticSound.triggerHapticSelection()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                task.isCompleted.toggle()
+                                task.completionDate = task.isCompleted ? Date() : nil
+                                try? modelContext.save()
+                                
+                                // Updates the widget
+                                WidgetCenter.shared.reloadAllTimelines()
+                            }
+                            
+                            if task.isCompleted {
+                                hapticSound.playCompleteSound()
+                                // NEW: Trigger the test notification!
+                                NotificationManager.shared.sendTestTaskNotification(taskTitle: task.title)
+                            }
+                        }) {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundColor(task.isCompleted ? .gray : .pink)
                     .font(.title2)

@@ -62,4 +62,61 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         // This tells iOS: "Yes, I know the app is open. Show the banner and play the sound anyway."
         completionHandler([.banner, .sound, .badge])
     }
+    
+    // 1. The Morning Briefing (Runs daily at 8:00 AM)
+    func scheduleMorningBriefing(activeTasks: Int, dueHabits: Int) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["morning_briefing"])
+        
+        // If nothing is due, stay silent!
+        if activeTasks == 0 && dueHabits == 0 { return }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "Good Morning! ☀️"
+        content.body = "You have \(activeTasks) tasks and \(dueHabits) habits to tackle today."
+        content.sound = .default
+        
+        var dateComponents = DateComponents()
+        dateComponents.hour = 8
+        dateComponents.minute = 0
+        
+        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+        let request = UNNotificationRequest(identifier: "morning_briefing", content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
+    }
+    
+    // 2. The Streak Rescue (Runs at 9:00 PM if a streak is in danger)
+    func scheduleStreakRescue(habitName: String?) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["streak_rescue"])
+        
+        // If all habits are done, cancel the rescue!
+        guard let habitName = habitName else { return }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "Save Your Streak! 🔥"
+        content.body = "You haven't completed '\(habitName)' yet today. Don't lose your progress!"
+        content.sound = .default
+        
+        var dateComponents = DateComponents()
+        dateComponents.hour = 21 // 9:00 PM
+        dateComponents.minute = 0
+        
+        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
+        let request = UNNotificationRequest(identifier: "streak_rescue", content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
+    }
+    
+    // 3. The Break Timer (Fires exactly X seconds after break starts)
+    func scheduleBreakNotification(durationInSeconds: TimeInterval) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["break_timer_complete"])
+        
+        let content = UNMutableNotificationContent()
+        content.title = "Break is Over! ⏰"
+        content.body = "Time to get back to focus. You can do this!"
+        content.sound = .default
+        
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: durationInSeconds, repeats: false)
+        let request = UNNotificationRequest(identifier: "break_timer_complete", content: content, trigger: trigger)
+        
+        UNUserNotificationCenter.current().add(request)
+    }
 }

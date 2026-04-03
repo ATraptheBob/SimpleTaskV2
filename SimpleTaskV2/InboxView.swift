@@ -259,7 +259,6 @@ struct InboxView: View {
                     
                     if task.isCompleted {
                         hapticSound.playCompleteSound()
-                        NotificationManager.shared.sendTestTaskNotification(taskTitle: task.title)
                     }
                 }) {
                     Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")

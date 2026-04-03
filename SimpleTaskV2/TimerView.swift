@@ -1,34 +1,38 @@
 import SwiftUI
 import SwiftData
-import Combine
+internal import Combine
 
 struct TimerView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     
-    @AppStorage("pomodoroDuration") private var sessionLength = 1
+    // Preferences
     @AppStorage("isDarkMode") private var isDarkMode = true
+    @AppStorage("pomodoroDuration") private var sessionLength = 25
+    @AppStorage("breakDuration") private var breakDuration = 5
     
+    // Timer State
+    @State private var timeRemaining: Int = 1500
+    @State private var timerRunning = false
+    @State private var isBreakMode = false
+    @State private var selectedSubject = "Focus"
+    
+    // Persistence for backgrounding
     @AppStorage("targetEndTime") private var targetEndTime: Double = 0
-    @AppStorage("isTimerActive") private var timerRunning = false
-    @AppStorage("timeRemaining") private var storedTimeRemaining = 25 * 60
-    @AppStorage("currentFocus") private var selectedSubject = "AP Chemistry"
+    @AppStorage("storedTimeRemaining") private var storedTimeRemaining: Int = 1500
     
-    @AppStorage("savedSubjects") private var savedSubjects = "AP Chemistry,AP Calculus,AP Physics,French,Coding,General"
-    
-    @State private var timeRemaining = 25 * 60
-    @State private var showingAddSubject = false
-    @State private var newSubject = ""
-    
-    // FIX: This toggle prevents the "fly-in from top left" glitch
-    @State private var isReadyToAnimate = false
-    
+    let subjects = ["Focus", "Coding", "Reading", "Math", "Writing", "Design"]
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
-    var subjectsArray: [String] {
-        savedSubjects.components(separatedBy: ",").filter { !$0.isEmpty }
-    }
+    // UI Helpers
+    var activeColor: Color { isBreakMode ? .green : .pink }
     
+    var progress: CGFloat {
+        let total = isBreakMode ? (breakDuration * 60) : (sessionLength * 60)
+        guard total > 0 else { return 0 }
+        return CGFloat(timeRemaining) / CGFloat(total)
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -36,174 +40,142 @@ struct TimerView: View {
                 
                 VStack(spacing: 40) {
                     
+                    // Header
+                    HStack {
+                        Text(isBreakMode ? "Take a Break" : "Focus Session")
+                            .font(.title2).bold()
+                            .foregroundColor(activeColor)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 30)
+                    
+                    // Subject Picker (Hidden during breaks)
+                    if !isBreakMode {
+                        Menu {
+                            ForEach(subjects, id: \.self) { subject in
+                                Button(subject) { selectedSubject = subject }
+                            }
+                        } label: {
+                            HStack {
+                                Text(selectedSubject)
+                                Image(systemName: "chevron.up.chevron.down").font(.caption)
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(activeColor.opacity(0.15))
+                            .foregroundColor(activeColor)
+                            .clipShape(Capsule())
+                        }
+                        .disabled(timerRunning)
+                        .opacity(timerRunning ? 0.5 : 1.0)
+                    } else {
+                        // Spacer to keep the circle vertically aligned when picker is hidden
+                        Spacer().frame(height: 40)
+                    }
+                    
+                    // The Timer Circle
                     ZStack {
                         Circle()
-                            .stroke(lineWidth: 15)
-                            .opacity(0.1)
-                            .foregroundColor(.pink)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 20)
                         
                         Circle()
-                            .trim(from: 0.0, to: sessionLength > 0 ? CGFloat(timeRemaining) / CGFloat(sessionLength * 60) : 0)
-                            .stroke(style: StrokeStyle(lineWidth: 15, lineCap: .round, lineJoin: .round))
-                            .foregroundColor(.pink)
-                            .rotationEffect(Angle(degrees: 270.0))
-                        // FIX: Only applies the animation AFTER the initial layout is complete
-                            .animation(isReadyToAnimate ? .linear(duration: 1.0) : .none, value: timeRemaining)
+                            .trim(from: 0, to: progress)
+                            .stroke(activeColor, style: StrokeStyle(lineWidth: 20, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                            .animation(.linear(duration: 1.0), value: progress)
                         
-                        Text(timeString(time: timeRemaining))
-                            .font(.system(size: 60, weight: .bold, design: .monospaced))
-                            .foregroundColor(isDarkMode ? .white : .black)
-                    }
-                    .padding(.horizontal, 40)
-                    .padding(.top, 20)
-                    
-                    VStack(spacing: 12) {
-                        Text("Current Focus").font(.caption).bold().foregroundColor(.gray)
-                        
-                        ZStack {
-                            if timerRunning {
-                                Text(selectedSubject)
-                                    .font(.title2).bold()
-                                    .padding(.horizontal, 30)
-                                    .padding(.vertical, 15)
-                                    .background(Color.pink)
-                                    .foregroundColor(.white)
-                                    .clipShape(Capsule())
-                                    .shadow(color: .pink.opacity(0.4), radius: 15, y: 5)
-                                    .scaleEffect(1.1)
-                                    .transition(.scale(scale: 0.8).combined(with: .opacity))
-                                    .zIndex(1)
-                            } else {
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 12) {
-                                        Spacer().frame(width: 20)
-                                        ForEach(subjectsArray, id: \.self) { subject in
-                                            Text(subject)
-                                                .font(.subheadline).bold()
-                                                .padding(.horizontal, 20)
-                                                .padding(.vertical, 10)
-                                                .background(selectedSubject == subject ? Color.pink : (isDarkMode ? Color(white: 0.15) : Color.white))
-                                                .foregroundColor(selectedSubject == subject ? .white : (isDarkMode ? .gray : .black))
-                                                .clipShape(Capsule())
-                                                .shadow(color: .black.opacity(isDarkMode ? 0 : 0.05), radius: 5, y: 2)
-                                                .onTapGesture {
-                                                    HapticAndSoundManager.shared.triggerHapticSelection()
-                                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                                        selectedSubject = subject
-                                                    }
-                                                }
-                                        }
-                                        
-                                        Button(action: { showingAddSubject = true }) {
-                                            Image(systemName: "plus")
-                                                .font(.subheadline).bold()
-                                                .padding(.horizontal, 20)
-                                                .padding(.vertical, 10)
-                                                .background(isDarkMode ? Color(white: 0.15) : Color.white)
-                                                .foregroundColor(.gray)
-                                                .clipShape(Capsule())
-                                                .shadow(color: .black.opacity(isDarkMode ? 0 : 0.05), radius: 5, y: 2)
-                                        }
-                                        Spacer().frame(width: 20)
-                                    }
-                                }
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                            }
-                        }
-                    }
-                    .frame(height: 80)
-                    
-                    VStack(spacing: 25) {
-                        HStack(spacing: 30) {
-                            Button(action: resetTimer) {
-                                Image(systemName: "arrow.counterclockwise.circle.fill")
-                                    .font(.system(size: 44))
-                                    .foregroundColor(.gray)
-                                    .opacity(timerRunning ? 0.5 : 1.0)
-                            }
-                            .disabled(timerRunning)
+                        VStack(spacing: 8) {
+                            Text(timeString(from: timeRemaining))
+                                .font(.system(size: 65, weight: .bold, design: .rounded))
+                                .foregroundColor(isDarkMode ? .white : .black)
+                                .contentTransition(.numericText())
                             
-                            Button(action: toggleTimer) {
-                                Image(systemName: timerRunning ? "pause.circle.fill" : "play.circle.fill")
-                                    .font(.system(size: 64))
-                                    .foregroundColor(.pink)
-                            }
+                            Text(isBreakMode ? "Relaxing..." : "Remaining")
+                                .font(.headline)
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .frame(width: 280, height: 280)
+                    .padding(.vertical, 20)
+                    
+                    // Controls
+                    HStack(spacing: 40) {
+                        Button(action: toggleTimer) {
+                            Image(systemName: timerRunning ? "pause.fill" : "play.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(.white)
+                                .frame(width: 80, height: 80)
+                                .background(activeColor)
+                                .clipShape(Circle())
+                                .shadow(color: activeColor.opacity(0.4), radius: 10, y: 5)
                         }
                         
-                        if timeRemaining < sessionLength * 60 {
-                            Button(action: endSessionEarly) {
-                                Text("End Session")
-                                    .font(.subheadline).bold()
-                                    .foregroundColor(.red)
-                                    .padding(.horizontal, 24)
-                                    .padding(.vertical, 10)
-                                    .background(Color.red.opacity(0.1))
-                                    .clipShape(Capsule())
-                            }
-                            .transition(.opacity)
+                        Button(action: isBreakMode ? resetTimer : endSessionEarly) {
+                            Image(systemName: isBreakMode ? "forward.end.fill" : "stop.fill")
+                                .font(.system(size: 30))
+                                .foregroundColor(.gray)
+                                .frame(width: 80, height: 80)
+                                .background(Color.gray.opacity(0.2))
+                                .clipShape(Circle())
                         }
+                        .disabled(timeRemaining == (isBreakMode ? breakDuration * 60 : sessionLength * 60))
+                        .opacity(timeRemaining == (isBreakMode ? breakDuration * 60 : sessionLength * 60) ? 0.5 : 1.0)
                     }
                     Spacer()
                 }
+                .padding(.top, 20)
             }
-            .navigationTitle("Focus")
-            .onAppear {
-                syncTimer()
-                // FIX: Waits 0.1 seconds for the view to physically snap into place before allowing animations
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    isReadyToAnimate = true
-                }
-            }
-            .onChange(of: scenePhase) { _, newPhase in
-                if newPhase == .active { syncTimer() }
-            }
-            .onReceive(timer) { _ in
-                if timerRunning {
-                    if timeRemaining > 0 {
-                        timeRemaining -= 1
-                        storedTimeRemaining = timeRemaining
-                    } else {
-                        finishSession()
-                    }
-                }
-            }
-            .alert("New Focus Subject", isPresented: $showingAddSubject) {
-                TextField("E.g., SAT Prep, Reading", text: $newSubject)
-                Button("Cancel", role: .cancel) { newSubject = "" }
-                Button("Add") {
-                    let trimmed = newSubject.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty {
-                        let currentSubjects = savedSubjects.components(separatedBy: ",")
-                        if !currentSubjects.contains(trimmed) {
-                            savedSubjects += ",\(trimmed)"
-                            selectedSubject = trimmed
-                        }
-                        newSubject = ""
-                    }
+        }
+        .onAppear {
+            calculateBackgroundTime()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active { calculateBackgroundTime() }
+        }
+        .onReceive(timer) { _ in
+            if timerRunning {
+                if timeRemaining > 0 {
+                    timeRemaining -= 1
+                } else {
+                    handleTimerCompletion()
                 }
             }
         }
     }
     
-    private func timeString(time: Int) -> String {
-        let minutes = time / 60
-        let seconds = time % 60
-        return String(format: "%02d:%02d", minutes, seconds)
-    }
+    // ---------------------------------------------------------
+    // TIMER ENGINE
+    // ---------------------------------------------------------
     
-    private func syncTimer() {
-        if timerRunning {
-            let remainingSeconds = targetEndTime - Date().timeIntervalSince1970
-            if remainingSeconds > 0 {
-                timeRemaining = Int(ceil(remainingSeconds))
-            } else {
-                finishSession()
+    private func handleTimerCompletion() {
+        HapticAndSoundManager.shared.playSuccessSound()
+        
+        if !isBreakMode {
+            // POMODORO FINISHED -> START BREAK
+            let session = PomodoroSession(durationMinutes: sessionLength, subject: selectedSubject)
+            modelContext.insert(session)
+            try? modelContext.save()
+            
+            withAnimation(.spring()) {
+                isBreakMode = true
+                timeRemaining = breakDuration * 60
+                targetEndTime = Date().timeIntervalSince1970 + Double(timeRemaining)
+                timerRunning = true
             }
+            
+            NotificationManager.shared.scheduleBreakNotification(durationInSeconds: Double(timeRemaining))
+            
         } else {
-            timeRemaining = storedTimeRemaining == 0 ? sessionLength * 60 : storedTimeRemaining
+            // BREAK FINISHED -> RESET TO POMODORO
+            withAnimation(.spring()) {
+                isBreakMode = false
+                timerRunning = false
+                timeRemaining = sessionLength * 60
+                targetEndTime = 0
+            }
         }
     }
-    
+
     private func toggleTimer() {
         HapticAndSoundManager.shared.triggerHapticSelection()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
@@ -212,44 +184,75 @@ struct TimerView: View {
         
         if timerRunning {
             targetEndTime = Date().timeIntervalSince1970 + Double(timeRemaining)
-            // NEW: Schedule the notification!
-            NotificationManager.shared.scheduleTimerNotification(durationInSeconds: Double(timeRemaining))
+            
+            if isBreakMode {
+                NotificationManager.shared.scheduleBreakNotification(durationInSeconds: Double(timeRemaining))
+            } else {
+                NotificationManager.shared.scheduleTimerNotification(durationInSeconds: Double(timeRemaining))
+            }
         } else {
             storedTimeRemaining = timeRemaining
             targetEndTime = 0
-            // NEW: Cancel the notification because we paused
+            
             NotificationManager.shared.cancelTimerNotification()
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["break_timer_complete"])
         }
     }
-    
+
     private func resetTimer() {
+        HapticAndSoundManager.shared.triggerHapticSelection()
         withAnimation { timerRunning = false }
-        timeRemaining = sessionLength * 60
+        
+        timeRemaining = isBreakMode ? (breakDuration * 60) : (sessionLength * 60)
         storedTimeRemaining = timeRemaining
         targetEndTime = 0
-        // NEW: Cancel notification
+        
         NotificationManager.shared.cancelTimerNotification()
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["break_timer_complete"])
     }
-    
+
     private func endSessionEarly() {
         HapticAndSoundManager.shared.triggerHapticSelection()
         let elapsedMinutes = sessionLength - (timeRemaining / 60)
         
-        if elapsedMinutes > 0 {
+        if elapsedMinutes > 0 && !isBreakMode {
             let session = PomodoroSession(durationMinutes: elapsedMinutes, subject: selectedSubject)
             modelContext.insert(session)
             try? modelContext.save()
         }
-        // NEW: Cancel notification
-        NotificationManager.shared.cancelTimerNotification()
+        
+        isBreakMode = false
         resetTimer()
     }
-    
-    private func finishSession() {
-        HapticAndSoundManager.shared.playCompleteSound()
-        let session = PomodoroSession(durationMinutes: sessionLength, subject: selectedSubject)
-        modelContext.insert(session)
-        try? modelContext.save()
-        resetTimer()
+
+    private func calculateBackgroundTime() {
+        if targetEndTime > 0 {
+            let currentTime = Date().timeIntervalSince1970
+            let difference = targetEndTime - currentTime
+            
+            if difference > 0 {
+                timeRemaining = Int(difference)
+                timerRunning = true
+            } else {
+                // Timer finished while app was closed
+                timeRemaining = 0
+                timerRunning = false
+                targetEndTime = 0
+                handleTimerCompletion()
+            }
+        } else if storedTimeRemaining > 0 {
+            timeRemaining = storedTimeRemaining
+            if timeRemaining > (isBreakMode ? breakDuration * 60 : sessionLength * 60) {
+                timeRemaining = isBreakMode ? breakDuration * 60 : sessionLength * 60
+            }
+        } else {
+            timeRemaining = isBreakMode ? breakDuration * 60 : sessionLength * 60
+        }
+    }
+
+    private func timeString(from seconds: Int) -> String {
+        let minutes = seconds / 60
+        let remainingSeconds = seconds % 60
+        return String(format: "%02d:%02d", minutes, remainingSeconds)
     }
 }

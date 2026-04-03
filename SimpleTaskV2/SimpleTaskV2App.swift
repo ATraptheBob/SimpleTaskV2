@@ -7,6 +7,7 @@ struct SimpleTaskV2App: App {
     
     // NEW: Tracks if the app is open, inactive, or in the background
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("isDarkMode") private var isDarkMode = true
     
     init() {
         do {
@@ -21,7 +22,7 @@ struct SimpleTaskV2App: App {
             fatalError("Could not configure SwiftData: \(error)")
         }
     }
-
+    
     var body: some Scene {
         WindowGroup {
             TabView {
@@ -30,13 +31,13 @@ struct SimpleTaskV2App: App {
                 TimerView().tabItem { Label("Focus", systemImage: "timer") }
             }
             .tint(.pink)
-            .preferredColorScheme(.dark)
+            // 2. CHANGE THIS LINE: Dynamically flip the system text colors
+            .preferredColorScheme(isDarkMode ? .dark : .light)
             .onAppear {
                 NotificationManager.shared.requestAuthorization()
             }
         }
         .modelContainer(container)
-        // NEW: When you swipe to the Home Screen, calculate the schedules
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
                 scheduleSmartNotifications()

@@ -1,63 +1,63 @@
 import SwiftUI
 import AVFoundation
 
-// This imports the stable, built-in haptics system
-#if canImport(UIKit)
-import UIKit
-#endif
-
-struct HapticAndSoundManager {
+class HapticAndSoundManager {
     static let shared = HapticAndSoundManager()
     
-    // Audio Players
-    private var successPlayer: AVAudioPlayer?
-    private var deletePlayer: AVAudioPlayer?
-    private var completePlayer: AVAudioPlayer?
+    private init() {} // Prevents accidental duplicate managers
     
-    private init() {
-        // Initialize Audio Players
-        setupAudioPlayer(for: &successPlayer, resourceName: "success_sound")
-        setupAudioPlayer(for: &deletePlayer, resourceName: "delete_sound")
-        setupAudioPlayer(for: &completePlayer, resourceName: "complete_sound")
-    }
-    
-    private func setupAudioPlayer(for player: inout AVAudioPlayer?, resourceName: String) {
-        guard let soundURL = Bundle.main.url(forResource: resourceName, withExtension: "mp3") else {
-            return
+    // 1. THE FIX: Look directly into UserDefaults to see what the user chose
+    private var isHapticsEnabled: Bool {
+        // If the setting has never been touched, default to true
+        if UserDefaults.standard.object(forKey: "enableHaptics") == nil {
+            return true
         }
-        do {
-            player = try AVAudioPlayer(contentsOf: soundURL)
-            player?.prepareToPlay()
-        } catch {
-            print("Could not load sound \(resourceName): \(error)")
+        return UserDefaults.standard.bool(forKey: "enableHaptics")
+    }
+    
+    private var isSoundEnabled: Bool {
+        if UserDefaults.standard.object(forKey: "enableSounds") == nil {
+            return true
         }
+        return UserDefaults.standard.bool(forKey: "enableSounds")
     }
     
-    // STABLE HAPTIC TRIGGERS
-    func triggerHapticSuccess() {
-#if os(iOS)
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.success)
-#endif
-    }
-    
-    func triggerHapticWarning() {
-#if os(iOS)
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.warning)
-#endif
-    }
+    // ---------------------------------------------------------
+    // HAPTICS (Upgraded for stronger feedback)
+    // ---------------------------------------------------------
     
     func triggerHapticSelection() {
-#if os(iOS)
-        let generator = UISelectionFeedbackGenerator()
+        guard isHapticsEnabled else { return }
+        
+        // UPGRADE: Changed from standard UISelectionFeedbackGenerator
+        // to a .medium impact so you actually feel the thump when tapping buttons
+        let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.prepare()
-        generator.selectionChanged()
-#endif
+        generator.impactOccurred()
     }
     
-    // SOUND TRIGGERS
-    func playSuccessSound() { successPlayer?.play() }
-    func playDeleteSound() { deletePlayer?.play() }
-    func playCompleteSound() { completePlayer?.play() }
+    func triggerHapticSuccess() {
+        guard isHapticsEnabled else { return }
+        
+        // This provides a very distinct, strong double-tap vibration for completing tasks
+        let generator = UINotificationFeedbackGenerator()
+        generator.prepare()
+        generator.notificationOccurred(.success)
+    }
+    
+    // ---------------------------------------------------------
+    // SOUNDS
+    // ---------------------------------------------------------
+    
+    func playSuccessSound() {
+        guard isSoundEnabled else { return }
+        // 1001 is the standard iOS subtle pop/ding sound
+        AudioServicesPlaySystemSound(1001)
+    }
+    
+    func playCompleteSound() {
+        guard isSoundEnabled else { return }
+        // 1022 is a slightly more satisfying task-completion sound
+        AudioServicesPlaySystemSound(1022)
+    }
 }

@@ -5,6 +5,7 @@ struct SettingsView: View {
     @AppStorage("pomodoroDuration") private var pomodoroDuration = 25
     @AppStorage("breakDuration") private var breakDuration = 5
     
+    // Swipe Settings
     @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .edit
     @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
     
@@ -15,7 +16,7 @@ struct SettingsView: View {
     
     var body: some View {
         ZStack {
-            // Adapts background color based on theme
+            // Adapts main background color based on theme
             (isDarkMode ? Color(white: 0.05) : Color(white: 0.95)).ignoresSafeArea()
             
             Form {
@@ -31,7 +32,7 @@ struct SettingsView: View {
                     
                     Stepper(value: $breakDuration, in: 1...30, step: 1) {
                         HStack {
-                            Image(systemName: "cup.and.saucer.fill").foregroundColor(.orange)
+                            Image(systemName: "cup.and.saucer.fill").foregroundColor(.green)
                             Text("Break Length")
                             Spacer()
                             Text("\(breakDuration) min").foregroundColor(.gray)
@@ -53,12 +54,13 @@ struct SettingsView: View {
                         }
                     }
                 }
+                // THE FIX: Added the background modifier to the Swipe section
+                .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
                 
                 Section(header: Text("Preferences").foregroundColor(.gray)) {
                     Toggle(isOn: $isDarkMode) {
                         HStack {
-                            Image(systemName: isDarkMode ? "moon.fill" : "sun.max.fill")
-                                .foregroundColor(isDarkMode ? .purple : .yellow)
+                            Image(systemName: "moon.fill").foregroundColor(.indigo)
                             Text("Dark Mode")
                         }
                     }

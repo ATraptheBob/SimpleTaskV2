@@ -13,7 +13,9 @@ struct AddTaskView: View {
     
     @State private var title = ""
     @State private var dueDate = Date()
-    @State private var repeatInterval: RepeatInterval = .none
+    
+    // FIX: Explicitly declared as RepeatInterval.none to avoid Optional enum ambiguity
+    @State private var repeatInterval: RepeatInterval = RepeatInterval.none
     
     @State private var notes = ""
     @State private var newStepTitle = ""
@@ -21,6 +23,8 @@ struct AddTaskView: View {
     
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var selectedImageData: Data? = nil
+    
+    var taskToEdit: TaskItem?
     
     var body: some View {
         NavigationStack {
@@ -101,9 +105,7 @@ struct AddTaskView: View {
                             Task {
                                 if let data = try? await newItem?.loadTransferable(type: Data.self) {
                                     DispatchQueue.main.async {
-                                        withAnimation {
-                                            selectedImageData = data
-                                        }
+                                        withAnimation { selectedImageData = data }
                                     }
                                 }
                             }
@@ -113,33 +115,54 @@ struct AddTaskView: View {
                 }
                 .scrollContentBackground(.hidden)
             }
-            .navigationTitle("New Task")
+            .navigationTitle(taskToEdit == nil ? "New Task" : "Edit Task")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
-                isTitleFocused = true
+                if let task = taskToEdit {
+                    title = task.title
+                    dueDate = task.dueDate
+                    
+                    // Uses explicit non-optional to satisfy the compiler
+                    repeatInterval = task.repeatInterval ?? RepeatInterval.none
+                    
+                    notes = task.notes
+                    selectedImageData = task.imageData
+                    steps = task.subtasks.map { $0.title }
+                } else {
+                    isTitleFocused = true
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { closeSheet() }
-                        .foregroundColor(.red)
+                    Button("Cancel") { closeSheet() }.foregroundColor(.red)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
                         HapticAndSoundManager.shared.triggerHapticSuccess()
                         
-                        let task = TaskItem(
-                            title: title,
-                            dueDate: dueDate,
-                            repeatInterval: repeatInterval,
-                            notes: notes,
-                            imageData: selectedImageData
-                        )
-                        
-                        modelContext.insert(task)
-                        
-                        for stepTitle in steps {
-                            let subtask = SubtaskItem(title: stepTitle)
-                            task.subtasks.append(subtask)
+                        if let task = taskToEdit {
+                            task.title = title
+                            task.dueDate = dueDate
+                            task.repeatInterval = repeatInterval
+                            task.notes = notes
+                            task.imageData = selectedImageData
+                            
+                            task.subtasks.forEach { modelContext.delete($0) }
+                            task.subtasks.removeAll()
+                            for stepTitle in steps {
+                                let subtask = SubtaskItem(title: stepTitle)
+                                task.subtasks.append(subtask)
+                            }
+                        } else {
+                            let task = TaskItem(
+                                title: title, dueDate: dueDate,
+                                repeatInterval: repeatInterval, notes: notes, imageData: selectedImageData
+                            )
+                            modelContext.insert(task)
+                            for stepTitle in steps {
+                                let subtask = SubtaskItem(title: stepTitle)
+                                task.subtasks.append(subtask)
+                            }
                         }
                         
                         try? modelContext.save()
@@ -175,7 +198,6 @@ struct AddTaskView: View {
         isNotesFocused = false
         isStepFocused = false
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        
         dismiss()
     }
 }

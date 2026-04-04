@@ -86,121 +86,126 @@ struct InboxView: View {
                     } else {
                         List {
                             if !dueHabits.isEmpty {
-                                Section(header: Text("Today's Habits").foregroundColor(.orange).bold()) {
+                                Section(header: Text("Today's Habits").foregroundColor(.orange).bold().padding(.leading, 8)) {
                                     ForEach(dueHabits) { habit in
-                                        HStack {
-                                            let isCompletedToday = habit.completionDates.contains { Calendar.current.isDateInToday($0) }
-                                            Image(systemName: isCompletedToday ? "checkmark.circle.fill" : "circle")
-                                                .foregroundColor(isCompletedToday ? .orange : .gray)
-                                                .font(.title2)
-                                                .contentShape(Circle())
-                                                .onTapGesture { toggleHabit(habit) }
-                                            
+                                        VStack(spacing: 0) {
                                             HStack {
-                                                Text(habit.title).foregroundColor(isDarkMode ? .white : .black)
-                                                Spacer()
+                                                let isCompletedToday = habit.completionDates.contains { Calendar.current.isDateInToday($0) }
+                                                Image(systemName: isCompletedToday ? "checkmark.circle.fill" : "circle")
+                                                    .foregroundColor(isCompletedToday ? .orange : .gray)
+                                                    .font(.title2)
+                                                    .contentShape(Circle())
+                                                    .onTapGesture { toggleHabit(habit) }
                                                 
-                                                // FIX: Only render the HStack (Text AND Flame) if streak > 0
-                                                if habit.streak > 0 {
-                                                    HStack(spacing: 4) {
-                                                        Text("\(habit.streak)")
-                                                            .font(.caption)
-                                                            .fontWeight(.bold)
-                                                            .foregroundColor(.orange)
-                                                        Image(systemName: "flame.fill").foregroundColor(.orange).font(.caption)
+                                                HStack {
+                                                    Text(habit.title).foregroundColor(isDarkMode ? .white : .black)
+                                                    Spacer()
+                                                    
+                                                    if habit.streak > 0 {
+                                                        HStack(spacing: 4) {
+                                                            Text("\(habit.streak)")
+                                                                .font(.caption)
+                                                                .fontWeight(.bold)
+                                                                .foregroundColor(.orange)
+                                                            Image(systemName: "flame.fill").foregroundColor(.orange).font(.caption)
+                                                        }
                                                     }
                                                 }
+                                                .contentShape(Rectangle())
+                                                .onTapGesture { habitToEdit = habit }
                                             }
-                                            .contentShape(Rectangle())
-                                            .onTapGesture { habitToEdit = habit }
+                                            .padding(.vertical, 14)
+                                            .padding(.horizontal, 16)
+                                            .customSwipeActions(
+                                                left: leftSwipeAction,
+                                                right: rightSwipeAction,
+                                                onLeft: { handleHabitSwipe(option: leftSwipeAction, habit: habit) },
+                                                onRight: { handleHabitSwipe(option: rightSwipeAction, habit: habit) }
+                                            )
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 4)
+                                            
+                                            Divider().padding(.leading, 50)
                                         }
-                                        // Note: Swipe firmly all the way across the screen to auto-execute!
-                                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                            if leftSwipeAction != .none {
-                                                Button { handleHabitSwipe(option: leftSwipeAction, habit: habit) } label: { Label(leftSwipeAction.rawValue, systemImage: leftSwipeAction.icon) }.tint(leftSwipeAction.color)
-                                            }
-                                        }
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                            if rightSwipeAction != .none {
-                                                Button { handleHabitSwipe(option: rightSwipeAction, habit: habit) } label: { Label(rightSwipeAction.rawValue, systemImage: rightSwipeAction.icon) }.tint(rightSwipeAction.color)
-                                            }
-                                        }
+                                        .listRowInsets(EdgeInsets())
                                         .listRowBackground(Color.clear)
-                                        .listRowSeparator(.visible)
-                                        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                                        .listRowSeparator(.hidden)
                                     }
                                 }
                             }
                             
                             if !activeTasks.isEmpty {
-                                Section(header: Text("Tasks").foregroundColor(.pink).bold()) {
+                                Section(header: Text("Tasks").foregroundColor(.pink).bold().padding(.leading, 8).padding(.top, 10)) {
                                     ForEach(activeTasks) { task in
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            HStack {
-                                                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                                                    .foregroundColor(task.isCompleted ? .pink : .gray)
-                                                    .font(.title2)
-                                                    .contentShape(Circle())
-                                                    .onTapGesture { toggleTask(task) }
-                                                
+                                        VStack(spacing: 0) {
+                                            VStack(alignment: .leading, spacing: 8) {
                                                 HStack {
-                                                    Text(task.title)
-                                                        .strikethrough(task.isCompleted)
-                                                        .foregroundColor(task.isCompleted ? .gray : (isDarkMode ? .white : .black))
-                                                    Spacer()
-                                                    if !task.isCompleted {
-                                                        let isOverdue = Calendar.current.startOfDay(for: task.dueDate) < Calendar.current.startOfDay(for: Date())
-                                                        
-                                                        Text(task.dueDate.formatted(.dateTime.month().day()))
-                                                            .font(.caption2)
-                                                            .foregroundColor(isOverdue ? .red.opacity(0.7) : (isDarkMode ? .gray.opacity(0.8) : .gray))
-                                                    }
-                                                }
-                                                .contentShape(Rectangle())
-                                                .onTapGesture { selectedTask = task }
-                                            }
-                                            
-                                            if !task.subtasks.isEmpty {
-                                                VStack(alignment: .leading, spacing: 8) {
-                                                    ForEach(task.subtasks) { subtask in
-                                                        HStack {
-                                                            Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
-                                                                .foregroundColor(subtask.isCompleted ? .pink : .gray)
-                                                                .font(.caption)
-                                                                .contentShape(Circle())
-                                                                .onTapGesture {
-                                                                    withAnimation {
-                                                                        subtask.isCompleted.toggle()
-                                                                        try? modelContext.save()
-                                                                    }
-                                                                }
+                                                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                                                        .foregroundColor(task.isCompleted ? .pink : .gray)
+                                                        .font(.title2)
+                                                        .contentShape(Circle())
+                                                        .onTapGesture { toggleTask(task) }
+                                                    
+                                                    HStack {
+                                                        Text(task.title)
+                                                            .strikethrough(task.isCompleted)
+                                                            .foregroundColor(task.isCompleted ? .gray : (isDarkMode ? .white : .black))
+                                                        Spacer()
+                                                        if !task.isCompleted {
+                                                            let isOverdue = Calendar.current.startOfDay(for: task.dueDate) < Calendar.current.startOfDay(for: Date())
                                                             
-                                                            Text(subtask.title)
-                                                                .font(.subheadline)
-                                                                .strikethrough(subtask.isCompleted)
-                                                                .foregroundColor(subtask.isCompleted ? .gray : (isDarkMode ? .gray : .black.opacity(0.7)))
-                                                            
-                                                            Spacer()
+                                                            Text(task.dueDate.formatted(.dateTime.month().day()))
+                                                                .font(.caption2)
+                                                                .foregroundColor(isOverdue ? .red.opacity(0.7) : (isDarkMode ? .gray.opacity(0.8) : .gray))
                                                         }
                                                     }
+                                                    .contentShape(Rectangle())
+                                                    .onTapGesture { selectedTask = task }
                                                 }
-                                                .padding(.leading, 32)
+                                                
+                                                if !task.subtasks.isEmpty {
+                                                    VStack(alignment: .leading, spacing: 8) {
+                                                        ForEach(task.subtasks) { subtask in
+                                                            HStack {
+                                                                Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                                                                    .foregroundColor(subtask.isCompleted ? .pink : .gray)
+                                                                    .font(.caption)
+                                                                    .contentShape(Circle())
+                                                                    .onTapGesture {
+                                                                        withAnimation {
+                                                                            subtask.isCompleted.toggle()
+                                                                            try? modelContext.save()
+                                                                        }
+                                                                    }
+                                                                
+                                                                Text(subtask.title)
+                                                                    .font(.subheadline)
+                                                                    .strikethrough(subtask.isCompleted)
+                                                                    .foregroundColor(subtask.isCompleted ? .gray : (isDarkMode ? .gray : .black.opacity(0.7)))
+                                                                
+                                                                Spacer()
+                                                            }
+                                                        }
+                                                    }
+                                                    .padding(.leading, 32)
+                                                }
                                             }
+                                            .padding(.vertical, 12)
+                                            .padding(.horizontal, 16)
+                                            .customSwipeActions(
+                                                left: leftSwipeAction,
+                                                right: rightSwipeAction,
+                                                onLeft: { handleTaskSwipe(option: leftSwipeAction, task: task) },
+                                                onRight: { handleTaskSwipe(option: rightSwipeAction, task: task) }
+                                            )
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 4)
+                                            
+                                            Divider().padding(.leading, 50)
                                         }
-                                        .padding(.vertical, 4)
-                                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                            if leftSwipeAction != .none {
-                                                Button { handleTaskSwipe(option: leftSwipeAction, task: task) } label: { Label(leftSwipeAction.rawValue, systemImage: leftSwipeAction.icon) }.tint(leftSwipeAction.color)
-                                            }
-                                        }
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                            if rightSwipeAction != .none {
-                                                Button { handleTaskSwipe(option: rightSwipeAction, task: task) } label: { Label(rightSwipeAction.rawValue, systemImage: rightSwipeAction.icon) }.tint(rightSwipeAction.color)
-                                            }
-                                        }
+                                        .listRowInsets(EdgeInsets())
                                         .listRowBackground(Color.clear)
-                                        .listRowSeparator(.visible)
-                                        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                                        .listRowSeparator(.hidden)
                                     }
                                     .onMove(perform: moveTask)
                                 }
@@ -229,10 +234,8 @@ struct InboxView: View {
                 }
                 
                 // 3. THE BUBBLE OVERLAY MENU
-                // FIX: Structurally mirroring the Top App Bar to guarantee 100% perfect origin matching
                 VStack {
                     HStack {
-                        // Invisible anchor that is exactly the same size/position as the Hamburger Button
                         Color.clear
                             .frame(width: 44, height: 44)
                             .overlay(
@@ -250,7 +253,7 @@ struct InboxView: View {
                     
                     Spacer()
                 }
-                .ignoresSafeArea(edges: .bottom) // Allows it to cover the bottom screen, but respect top notch
+                .ignoresSafeArea(edges: .bottom)
                 .allowsHitTesting(false)
                 .zIndex(2)
                 
@@ -408,5 +411,104 @@ struct MenuLink: View {
                 .foregroundColor(isDarkMode ? .white : .black)
         }
         .frame(width: 180, alignment: .leading)
+    }
+}
+
+// ---------------------------------------------------------
+// CUSTOM SWIPE GESTURE MODIFIER
+// ---------------------------------------------------------
+struct SwipeRowModifier: ViewModifier {
+    let leftOption: SwipeOption
+    let rightOption: SwipeOption
+    let onLeftSwipe: () -> Void
+    let onRightSwipe: () -> Void
+    
+    @State private var offset: CGFloat = 0
+    @State private var triggered = false
+    @AppStorage("isDarkMode") private var isDarkMode = true
+    
+    private let triggerThreshold: CGFloat = 40
+    
+    func body(content: Content) -> some View {
+        ZStack {
+            // Background Layer (The Cutout)
+            GeometryReader { geo in
+                ZStack {
+                    if offset > 0 {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(leftOption.color)
+                            .overlay(
+                                HStack {
+                                    Image(systemName: leftOption.icon)
+                                        .font(.title3.bold())
+                                        .foregroundColor(.white)
+                                        .scaleEffect(offset > triggerThreshold ? 1.2 : 0.8)
+                                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: offset > triggerThreshold)
+                                        .padding(.leading, 20)
+                                    Spacer()
+                                }
+                            )
+                    }
+                    
+                    if offset < 0 {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(rightOption.color)
+                            .overlay(
+                                HStack {
+                                    Spacer()
+                                    Image(systemName: rightOption.icon)
+                                        .font(.title3.bold())
+                                        .foregroundColor(.white)
+                                        .scaleEffect(offset < -triggerThreshold ? 1.2 : 0.8)
+                                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: offset < -triggerThreshold)
+                                        .padding(.trailing, 20)
+                                }
+                            )
+                    }
+                }
+            }
+            
+            // Foreground Layer (The Sliding Row)
+            content
+                // FIX 2: Reverted background to match exactly with the app theme so it is completely flush
+                .background(isDarkMode ? Color.black : Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .offset(x: offset)
+                .gesture(
+                    // FIX 1: minimumDistance of 30 allows vertical scrolling to dominate before dragging starts
+                    DragGesture(minimumDistance: 30)
+                        .onChanged { value in
+                            let drag = value.translation.width
+                            offset = drag > 0 ? pow(drag, 0.9) : -pow(-drag, 0.9)
+                            
+                            if offset > triggerThreshold && !triggered && leftOption != .none {
+                                HapticAndSoundManager.shared.triggerHapticSelection()
+                                triggered = true
+                            } else if offset < -triggerThreshold && !triggered && rightOption != .none {
+                                HapticAndSoundManager.shared.triggerHapticSelection()
+                                triggered = true
+                            } else if abs(offset) < triggerThreshold {
+                                triggered = false
+                            }
+                        }
+                        .onEnded { value in
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                if offset > triggerThreshold && leftOption != .none {
+                                    onLeftSwipe()
+                                } else if offset < -triggerThreshold && rightOption != .none {
+                                    onRightSwipe()
+                                }
+                                offset = 0
+                                triggered = false
+                            }
+                        }
+                )
+        }
+    }
+}
+
+extension View {
+    func customSwipeActions(left: SwipeOption, right: SwipeOption, onLeft: @escaping () -> Void, onRight: @escaping () -> Void) -> some View {
+        self.modifier(SwipeRowModifier(leftOption: left, rightOption: right, onLeftSwipe: onLeft, onRightSwipe: onRight))
     }
 }

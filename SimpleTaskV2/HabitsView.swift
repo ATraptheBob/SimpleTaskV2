@@ -21,20 +21,18 @@ struct HabitsView: View {
     @State private var showingAddSheet = false
     @State private var habitToEdit: HabitItem?
     
-    // Shared state to sync Heatmap and Stats
     @State private var selectedMonthIndex: Int = 11
-    
+
     var dailyHabits: [HabitItem] { habits.filter { $0.frequency == .daily } }
     var weeklyHabits: [HabitItem] { habits.filter { $0.frequency == .weekly } }
     var monthlyHabits: [HabitItem] { habits.filter { $0.frequency == .monthly } }
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
                 (isDarkMode ? Color.black : Color.white).ignoresSafeArea()
                 
                 VStack(spacing: 0) {
-                    // HEADER
                     HStack(alignment: .center) {
                         Text("Habits")
                             .font(.system(size: 34, weight: .bold, design: .rounded))
@@ -50,7 +48,6 @@ struct HabitsView: View {
                     .padding(.top, 10)
                     .padding(.bottom, 16)
                     
-                    // Dashboard synchronized with the selected month
                     HabitDashboardPanel(habits: habits, isDarkMode: isDarkMode, selectedMonthIndex: $selectedMonthIndex)
                         .padding(.bottom, 8)
                     
@@ -87,29 +84,32 @@ struct HabitDashboardPanel: View {
         }
         return counts
     }
-    
-    // STATS CALCULATION
+
     private var monthlyStats: (total: Int, bestStreak: Int, dailyAvg: Double) {
         guard !months.isEmpty, selectedMonthIndex < months.count else { return (0, 0, 0) }
         let currentMonth = months[selectedMonthIndex]
         let calendar = Calendar.current
         
-        // Filter out the grid-padding dates (only dates in this specific month)
         let monthDates = currentMonth.dates.filter { calendar.isDate($0, equalTo: currentMonth.monthStart, toGranularity: .month) }
-        let totalTrackedHabits = max(habits.count, 1)
         
-        // 1. Calculate percentage for each day: (Completed / Total)
+        // DYNAMIC ACCURACY: Only grade percentages based on habits scheduled for that specific day
         let dailyPercentages = monthDates.map { date -> Double in
-            let completedOnDay = dailyCompletions[date] ?? 0
-            return Double(completedOnDay) / Double(totalTrackedHabits)
+            let weekday = calendar.component(.weekday, from: date)
+            let activeHabitsForDay = habits.filter { $0.activeDays.contains(weekday) }
+            
+            if activeHabitsForDay.isEmpty { return 1.0 } // 100% if nothing was scheduled!
+            
+            let completedActive = activeHabitsForDay.filter { habit in
+                let completions = Set(habit.completionDates.map { calendar.startOfDay(for: $0) })
+                return completions.contains(date)
+            }.count
+            
+            return Double(completedActive) / Double(activeHabitsForDay.count)
         }
         
-        // 2. Find the average of those daily percentages
         let avgDailyRate = (dailyPercentages.reduce(0, +) / Double(max(monthDates.count, 1))) * 100
-        
         let totalVolume = monthDates.map { dailyCompletions[$0] ?? 0 }.reduce(0, +)
         
-        // Month-Specific Streak logic
         var maxStreak = 0
         var currentStreak = 0
         for date in monthDates {
@@ -123,14 +123,12 @@ struct HabitDashboardPanel: View {
         
         return (totalVolume, maxStreak, avgDailyRate)
     }
-    
+
     var body: some View {
         HStack(alignment: .center, spacing: 30) {
-            // HEATMAP (LEFT)
             HabitHeatmapView(completions: dailyCompletions, isDarkMode: isDarkMode, selectedMonth: $selectedMonthIndex, months: $months)
                 .frame(width: 130)
             
-            // DYNAMIC STATS (RIGHT)
             VStack(alignment: .leading, spacing: 18) {
                 StatRow(icon: "checkmark.seal.fill", color: .pink, title: "MONTH TOTAL", value: "\(monthlyStats.total)", isDarkMode: isDarkMode)
                 StatRow(icon: "flame.fill", color: .orange, title: "MONTH STREAK", value: "\(monthlyStats.bestStreak)", isDarkMode: isDarkMode)
@@ -189,12 +187,8 @@ struct HabitHeatmapView: View {
                 .padding(.top, 8)
             }
         }
-        .onAppear {
-            if months.isEmpty { self.months = generateMonths() }
-        }
-        .onChange(of: selectedMonth) { _, _ in
-            withAnimation(.easeInOut(duration: 0.2)) { showDots = true }
-        }
+        .onAppear { if months.isEmpty { self.months = generateMonths() } }
+        .onChange(of: selectedMonth) { _, _ in withAnimation(.easeInOut(duration: 0.2)) { showDots = true } }
         .task(id: showDots) {
             if showDots {
                 try? await Task.sleep(nanoseconds: 1_200_000_000)
@@ -211,8 +205,7 @@ struct HabitHeatmapView: View {
         
         for i in (0..<12).reversed() {
             guard let monthStart = calendar.date(byAdding: .month, value: -i, to: currentMonthStart) else { continue }
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MMM yyyy"
+            let formatter = DateFormatter(); formatter.dateFormat = "MMM yyyy"
             let name = formatter.string(from: monthStart).uppercased()
             
             guard let range = calendar.range(of: .day, in: .month, for: monthStart),
@@ -259,7 +252,6 @@ struct MonthGrid: View {
         }
     }
     
-    // ABSOLUTE COLOR SCALE (Independant of total habit count)
     func color(for count: Int, isFuture: Bool) -> Color {
         if isFuture { return isDarkMode ? Color(white: 0.08) : Color(white: 0.96) }
         switch count {
@@ -294,27 +286,72 @@ struct HabitSection: View {
     let title: String; let habits: [HabitItem]; let editAction: (HabitItem) -> Void; let isDarkMode: Bool
     private let hapticSound = HapticAndSoundManager.shared
     
+    @State private var expandedHabitID: PersistentIdentifier? = nil
+    
     var body: some View {
         if !habits.isEmpty {
             Section {
                 ForEach(habits) { habit in
-                    HStack(spacing: 16) {
-                        Button(action: { toggleHabit(habit) }) {
-                            Image(systemName: isCompleted(habit) ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(isCompleted(habit) ? .gray : .orange)
-                                .font(.system(size: 22, weight: .light))
+                    VStack(spacing: 0) {
+                        HStack(spacing: 16) {
+                            Button(action: { toggleHabit(habit) }) {
+                                Image(systemName: isCompleted(habit) ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(isCompleted(habit) ? .gray : .orange)
+                                    .font(.system(size: 22, weight: .light))
+                            }
+                            .buttonStyle(.plain)
+                            
+                            // Wrapping the text in a button to trigger the expansion
+                            Button(action: {
+                                hapticSound.triggerHapticSelection()
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                    expandedHabitID = (expandedHabitID == habit.id) ? nil : habit.id
+                                }
+                            }) {
+                                HStack {
+                                    Text(habit.title).font(.system(size: 17, weight: .regular))
+                                        .foregroundColor(isCompleted(habit) ? .gray : (isDarkMode ? .white : .black))
+                                        .strikethrough(isCompleted(habit))
+                                    Spacer()
+                                    HStack(spacing: 4) {
+                                        Text("\(currentStreak(for: habit))").font(.system(size: 14, weight: .bold, design: .rounded))
+                                        Image(systemName: "flame.fill").font(.system(size: 12))
+                                    }
+                                    .foregroundColor(isCompleted(habit) ? .gray.opacity(0.6) : .orange)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                         
-                        Text(habit.title).font(.system(size: 17, weight: .regular))
-                            .foregroundColor(isCompleted(habit) ? .gray : (isDarkMode ? .white : .black))
-                            .strikethrough(isCompleted(habit))
-                        Spacer()
-                        HStack(spacing: 4) {
-                            Text("\(habit.streak)").font(.system(size: 14, weight: .bold, design: .rounded))
-                            Image(systemName: "flame.fill").font(.system(size: 12))
+                        // THE 7-DAY SCHEDULE EXPANSION
+                        if expandedHabitID == habit.id {
+                            HStack(spacing: 10) {
+                                let days = ["S", "M", "T", "W", "T", "F", "S"]
+                                ForEach(0..<7, id: \.self) { i in
+                                    let dayInt = i + 1 // 1 = Sunday, 7 = Saturday
+                                    let isActive = habit.activeDays.contains(dayInt)
+                                    
+                                    Circle()
+                                        .fill(isActive ? Color.orange : Color.gray.opacity(0.2))
+                                        .frame(width: 32, height: 32)
+                                        .overlay(Text(days[i]).font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(isActive ? .white : (isDarkMode ? .white : .black)))
+                                        .onTapGesture {
+                                            hapticSound.triggerHapticSelection()
+                                            withAnimation {
+                                                if isActive { habit.activeDays.removeAll { $0 == dayInt } }
+                                                else { habit.activeDays.append(dayInt) }
+                                                try? modelContext.save()
+                                                WidgetCenter.shared.reloadAllTimelines()
+                                            }
+                                        }
+                                }
+                                Spacer()
+                            }
+                            .padding(.top, 14)
+                            .padding(.leading, 38)
+                            .transition(.move(edge: .top).combined(with: .opacity))
                         }
-                        .foregroundColor(isCompleted(habit) ? .gray.opacity(0.6) : .orange)
                     }
                     .opacity(isCompleted(habit) ? 0.5 : 1.0)
                     .listRowBackground(Color.clear)
@@ -341,16 +378,36 @@ struct HabitSection: View {
         }
     }
     
-    private func isCompleted(_ habit: HabitItem) -> Bool {
+    // FLAWLESS STREAK LOGIC: Ignores deselected days so your streak never breaks unfairly!
+    private func currentStreak(for habit: HabitItem) -> Int {
         let calendar = Calendar.current
-        return habit.completionDates.contains { date in
-            switch habit.frequency ?? .daily {
-            case .daily: return calendar.isDateInToday(date)
-            case .weekly: return calendar.isDate(date, equalTo: Date(), toGranularity: .weekOfYear)
-            case .monthly: return calendar.isDate(date, equalTo: Date(), toGranularity: .month)
-            case .none: return false
+        var streak = 0
+        let checkDate = calendar.startOfDay(for: Date())
+        let completions = Set(habit.completionDates.map { calendar.startOfDay(for: $0) })
+        let activeDays = habit.activeDays
+        
+        for i in 0..<365 {
+            guard let day = calendar.date(byAdding: .day, value: -i, to: checkDate) else { continue }
+            let weekday = calendar.component(.weekday, from: day)
+            let isCompleted = completions.contains(day)
+            
+            if activeDays.contains(weekday) {
+                if isCompleted { streak += 1 }
+                else {
+                    if i == 0 { continue } // Missing today hasn't broken it yet
+                    else { break } // Missing an active past day breaks it
+                }
+            } else {
+                if isCompleted { streak += 1 } // Bonus points if you do it on a day off!
+                // If not completed, it doesn't break because it wasn't scheduled.
             }
         }
+        return streak
+    }
+    
+    private func isCompleted(_ habit: HabitItem) -> Bool {
+        let calendar = Calendar.current
+        return habit.completionDates.contains { calendar.isDateInToday($0) }
     }
     
     private func toggleHabit(_ habit: HabitItem) {
@@ -369,7 +426,7 @@ struct HabitSection: View {
             try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines()
         }
     }
-    
+
     private func handleHabitSwipe(option: SwipeOption, habit: HabitItem) {
         switch option {
         case .edit: editAction(habit)

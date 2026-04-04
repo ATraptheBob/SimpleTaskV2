@@ -17,7 +17,7 @@ struct InboxView: View {
     @AppStorage("isDarkMode") private var isDarkMode = true
     @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .edit
     @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
-    
+
     var activeTasks: [TaskItem] {
         let filtered = allTasks.filter { task in
             if !task.isCompleted { return true }
@@ -32,17 +32,25 @@ struct InboxView: View {
         }
     }
     
+    // UPDATED: Only show habits scheduled for TODAY
     var dueHabits: [HabitItem] {
-        allHabits.filter { !$0.isDone }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let weekday = calendar.component(.weekday, from: today)
+        
+        return allHabits.filter { habit in
+            let isScheduledToday = habit.activeDays.contains(weekday)
+            let isCompletedToday = habit.completionDates.contains { calendar.isDate($0, equalTo: today, toGranularity: .day) }
+            return isScheduledToday && !isCompletedToday
+        }
     }
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
                 (isDarkMode ? Color.black : Color.white).ignoresSafeArea()
                 
                 VStack(spacing: 0) {
-                    
                     HStack(alignment: .center) {
                         Spacer().frame(width: 44)
                         Text("Inbox")
@@ -84,7 +92,6 @@ struct InboxView: View {
                                     .listRowSeparator(.visible)
                                     .listRowSeparatorTint(Color.gray.opacity(0.2))
                                     .listRowInsets(EdgeInsets(top: 14, leading: 24, bottom: 14, trailing: 24))
-                                    // FIX: Changed from 62 to 0 to stretch the line all the way left
                                     .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                                 }
                             } header: {
@@ -107,21 +114,20 @@ struct InboxView: View {
                                 .listRowSeparator(.visible)
                                 .listRowSeparatorTint(Color.gray.opacity(0.2))
                                 .listRowInsets(EdgeInsets(top: 14, leading: 24, bottom: 14, trailing: 24))
-                                // FIX: Changed from 62 to 0
                                 .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                                 
                                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                     if leftSwipeAction != .none {
                                         Button { handleTaskSwipe(option: leftSwipeAction, task: task) }
                                         label: { Label(leftSwipeAction.rawValue, systemImage: leftSwipeAction.icon) }
-                                            .tint(leftSwipeAction.color)
+                                        .tint(leftSwipeAction.color)
                                     }
                                 }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                     if rightSwipeAction != .none {
                                         Button { handleTaskSwipe(option: rightSwipeAction, task: task) }
                                         label: { Label(rightSwipeAction.rawValue, systemImage: rightSwipeAction.icon) }
-                                            .tint(rightSwipeAction.color)
+                                        .tint(rightSwipeAction.color)
                                     }
                                 }
                             }
@@ -137,7 +143,7 @@ struct InboxView: View {
                     .scrollContentBackground(.hidden)
                 }
                 
-                // LAYER 2: THE GLITCH-FREE MENU
+                // LAYER 2: MENU
                 ZStack {
                     VStack {
                         HStack {
@@ -182,16 +188,15 @@ struct InboxView: View {
                 // POPUP LAYERS
                 if selectedTask != nil {
                     Color.black.opacity(0.6).ignoresSafeArea().transition(.opacity).onTapGesture { dismissPopup() }.zIndex(99)
-                }
-                
-                if let task = selectedTask {
+                    
+                    // FIXED: Removed ignoresSafeArea(.bottom) so the keyboard pushes this VStack upward!
                     VStack {
                         Spacer()
-                        TaskDetailPopup(task: task, isDarkMode: isDarkMode, dismissAction: dismissPopup).frame(maxHeight: 550)
+                        TaskDetailPopup(task: selectedTask!, isDarkMode: isDarkMode, dismissAction: dismissPopup)
+                            .frame(maxHeight: 550)
                     }
                     .transition(.move(edge: .bottom))
                     .zIndex(100)
-                    .ignoresSafeArea(edges: .bottom)
                 }
             }
             .navigationBarHidden(true)
@@ -199,7 +204,7 @@ struct InboxView: View {
             .sheet(isPresented: $showingAddSheet) { AddTaskView() }
         }
     }
-    
+
     private func toggleHabit(_ habit: HabitItem) {
         withAnimation {
             habit.completionDates.append(Date())
@@ -229,20 +234,15 @@ struct InboxView: View {
                 try? modelContext.save()
                 WidgetCenter.shared.reloadAllTimelines()
             }
-            if task.isCompleted {
-                hapticSound.triggerHapticSuccess()
-                hapticSound.playCompleteSound()
-            } else {
-                hapticSound.triggerHapticSelection()
-                hapticSound.playSuccessSound()
-            }
+            if task.isCompleted { hapticSound.triggerHapticSuccess(); hapticSound.playCompleteSound() }
+            else { hapticSound.triggerHapticSelection(); hapticSound.playSuccessSound() }
         case .none: break
         }
     }
 }
 
 // ---------------------------------------------------------
-// MINIMALIST TASK ROW (WITH INLINE SUBTASKS)
+// MINIMALIST TASK ROW
 // ---------------------------------------------------------
 struct TaskRowView: View {
     @Environment(\.modelContext) private var modelContext
@@ -253,10 +253,7 @@ struct TaskRowView: View {
     private let hapticSound = HapticAndSoundManager.shared
     
     var body: some View {
-        // FIX: Changed alignment to .top so the main checkmark stays anchored to the title
         HStack(alignment: .top, spacing: 16) {
-            
-            // 1. MAIN TASK CHECKMARK
             Button(action: {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                     task.isCompleted.toggle()
@@ -264,36 +261,23 @@ struct TaskRowView: View {
                     try? modelContext.save()
                     WidgetCenter.shared.reloadAllTimelines()
                 }
-                
-                if task.isCompleted {
-                    hapticSound.triggerHapticSuccess()
-                    hapticSound.playCompleteSound()
-                } else {
-                    hapticSound.triggerHapticSelection()
-                    hapticSound.playSuccessSound()
-                }
+                if task.isCompleted { hapticSound.triggerHapticSuccess(); hapticSound.playCompleteSound() }
+                else { hapticSound.triggerHapticSelection(); hapticSound.playSuccessSound() }
             }) {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundColor(task.isCompleted ? .gray : .pink)
                     .font(.system(size: 22, weight: .light))
             }
             .buttonStyle(.plain)
-            .padding(.top, 1) // Micro-adjustment to perfectly align with the text
+            .padding(.top, 1)
             
-            // 2. TASK CONTENT (Title + Subtasks)
             VStack(alignment: .leading, spacing: 6) {
-                
-                // Main Title Row
                 Button(action: { onSelect() }) {
                     HStack {
-                        Text(task.title)
-                            .font(.system(size: 17, weight: .regular))
+                        Text(task.title).font(.system(size: 17, weight: .regular))
                             .foregroundColor(task.isCompleted ? .gray : (isDarkMode ? .white : .black))
                             .strikethrough(task.isCompleted)
-                        
                         Spacer()
-                        
-                        // Icons (Checklist removed since we show it inline now)
                         HStack(spacing: 8) {
                             if !task.notes.isEmpty { Image(systemName: "text.alignleft").font(.caption) }
                             if task.imageData != nil { Image(systemName: "photo").font(.caption) }
@@ -304,13 +288,10 @@ struct TaskRowView: View {
                 }
                 .buttonStyle(.plain)
                 
-                // 3. INLINE SUBTASKS (Unobtrusive & Interactive)
                 if !task.subtasks.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(task.subtasks) { subtask in
                             HStack(alignment: .center, spacing: 8) {
-                                
-                                // Interactive Mini-Checkmark
                                 Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundColor(subtask.isCompleted ? .gray.opacity(0.4) : .pink.opacity(0.5))
@@ -321,15 +302,11 @@ struct TaskRowView: View {
                                         try? modelContext.save()
                                         WidgetCenter.shared.reloadAllTimelines()
                                     }
-                                
-                                Text(subtask.title)
-                                    .font(.system(size: 14, weight: .regular))
+                                Text(subtask.title).font(.system(size: 14, weight: .regular))
                                     .foregroundColor(subtask.isCompleted ? .gray.opacity(0.4) : .gray)
                                     .strikethrough(subtask.isCompleted)
                                     .lineLimit(1)
-                                    .onTapGesture {
-                                        onSelect() // Tapping the text still safely opens the menu
-                                    }
+                                    .onTapGesture { onSelect() }
                             }
                         }
                     }
@@ -343,7 +320,7 @@ struct TaskRowView: View {
 }
 
 // ---------------------------------------------------------
-// POPUP AND MENU HELPERS
+// POPUP AND MENU HELPERS (WITH CLICKABLE LINKS & KEYBOARD FIX)
 // ---------------------------------------------------------
 struct TaskDetailPopup: View {
     @Environment(\.modelContext) private var modelContext
@@ -353,6 +330,11 @@ struct TaskDetailPopup: View {
     
     @State private var newSubtaskTitle = ""
     @State private var selectedPhoto: PhotosPickerItem?
+    
+    // NEW: Toggles between Clickable Markdown and Editable TextField
+    @State private var isEditingNotes = false
+    @FocusState private var isNotesFocused: Bool
+    
     private let hapticSound = HapticAndSoundManager.shared
     
     var body: some View {
@@ -414,18 +396,54 @@ struct TaskDetailPopup: View {
                         }
                     }
                     Divider().background(Color.gray.opacity(0.3))
+                    
+                    // UPDATED: Note Section
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Notes").font(.caption).bold().foregroundColor(.gray)
-                        TextEditor(text: $task.notes)
-                            .frame(minHeight: 100)
-                            .scrollContentBackground(.hidden)
-                            .padding(8)
-                            .background(isDarkMode ? Color(white: 0.08) : Color.white)
-                            .cornerRadius(8)
-                            .foregroundColor(isDarkMode ? .white : .black)
-                            .onChange(of: task.notes) { _, _ in try? modelContext.save() }
+                        HStack {
+                            Text("Notes").font(.caption).bold().foregroundColor(.gray)
+                            Spacer()
+                            if !isEditingNotes {
+                                Button("Edit") { isEditingNotes = true; isNotesFocused = true }
+                                    .font(.caption).bold().foregroundColor(.pink)
+                            } else {
+                                Button("Save") { isEditingNotes = false; isNotesFocused = false; try? modelContext.save() }
+                                    .font(.caption).bold().foregroundColor(.pink)
+                            }
+                        }
+                        
+                        if isEditingNotes {
+                            TextEditor(text: $task.notes)
+                                .focused($isNotesFocused)
+                                .frame(minHeight: 100)
+                                .scrollContentBackground(.hidden)
+                                .padding(8)
+                                .background(isDarkMode ? Color(white: 0.08) : Color.white)
+                                .cornerRadius(8)
+                                .foregroundColor(isDarkMode ? .white : .black)
+                                .toolbar {
+                                    ToolbarItemGroup(placement: .keyboard) {
+                                        Spacer()
+                                        Button("Done") { isEditingNotes = false; isNotesFocused = false; try? modelContext.save() }
+                                            .foregroundColor(.pink)
+                                    }
+                                }
+                        } else {
+                            // Clickable Markdown mode! Will route links to your browser automatically.
+                            Text(.init(task.notes.isEmpty ? "No notes. Tap Edit to add." : task.notes))
+                                .font(.system(size: 16))
+                                .foregroundColor(isDarkMode ? .white : .black)
+                                .tint(.pink) // Colors links pink
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(8)
+                                .environment(\.openURL, OpenURLAction { url in
+                                    UIApplication.shared.open(url)
+                                    return .handled
+                                })
+                        }
                     }
+                    
                     Divider().background(Color.gray.opacity(0.3))
+                    
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Attachment").font(.caption).bold().foregroundColor(.gray)
                         if let imageData = task.imageData, let uiImage = UIImage(data: imageData) {

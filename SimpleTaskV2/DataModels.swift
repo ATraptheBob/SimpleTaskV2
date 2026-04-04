@@ -51,6 +51,7 @@ final class HabitItem {
     var title: String
     var frequency: RepeatInterval?
     var completionDates: [Date] = []
+    var activeDays: [Int] = [1, 2, 3, 4, 5, 6, 7]
     
     // The mathematically perfect streak calculator
     var streak: Int {

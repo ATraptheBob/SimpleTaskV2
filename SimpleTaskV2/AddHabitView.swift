@@ -10,6 +10,7 @@ struct AddHabitView: View {
     @State private var frequency: RepeatInterval = .daily
     
     var habitToEdit: HabitItem?
+    var activeDays: [Int] = [1, 2, 3, 4, 5, 6, 7]
     
     var body: some View {
         NavigationStack {

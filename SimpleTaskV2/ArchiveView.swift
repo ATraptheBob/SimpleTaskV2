@@ -5,9 +5,18 @@ struct ArchiveView: View {
     @Query(sort: \TaskItem.completionDate, order: .reverse) private var allTasks: [TaskItem]
     @AppStorage("isDarkMode") private var isDarkMode = true
     
+    @AppStorage("archiveSetting") private var archiveSetting: String = "Midnight"
+    
     var archivedTasks: [TaskItem] {
         allTasks.filter { task in
-            task.isCompleted && (task.completionDate != nil && Date().timeIntervalSince(task.completionDate!) >= 86400)
+            guard task.isCompleted, let completionDate = task.completionDate else { return false }
+            if archiveSetting == "24 Hours" {
+                return Date().timeIntervalSince(completionDate) >= 86400
+            } else if archiveSetting == "Midnight" {
+                return !Calendar.current.isDateInToday(completionDate)
+            } else { // Immediately
+                return true
+            }
         }
     }
     

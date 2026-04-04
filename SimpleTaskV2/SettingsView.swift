@@ -5,6 +5,8 @@ struct SettingsView: View {
     @AppStorage("pomodoroDuration") private var pomodoroDuration = 25
     @AppStorage("breakDuration") private var breakDuration = 5
     
+    @AppStorage("archiveSetting") private var archiveSetting: String = "Midnight"
+    
     // Swipe Settings
     @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .edit
     @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete

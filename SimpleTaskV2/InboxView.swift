@@ -17,12 +17,20 @@ struct InboxView: View {
     @AppStorage("isDarkMode") private var isDarkMode = true
     @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .edit
     @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
-
+    
+    @AppStorage("archiveSetting") private var archiveSetting: String = "Midnight"
+    
     var activeTasks: [TaskItem] {
         let filtered = allTasks.filter { task in
             if !task.isCompleted { return true }
             if let completionDate = task.completionDate {
-                return Date().timeIntervalSince(completionDate) < 86400
+                if archiveSetting == "24 Hours" {
+                    return Date().timeIntervalSince(completionDate) < 86400
+                } else if archiveSetting == "Midnight" {
+                    return Calendar.current.isDateInToday(completionDate)
+                } else { // Immediately
+                    return false
+                }
             }
             return false
         }
@@ -44,7 +52,7 @@ struct InboxView: View {
             return isScheduledToday && !isCompletedToday
         }
     }
-
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -120,14 +128,14 @@ struct InboxView: View {
                                     if leftSwipeAction != .none {
                                         Button { handleTaskSwipe(option: leftSwipeAction, task: task) }
                                         label: { Label(leftSwipeAction.rawValue, systemImage: leftSwipeAction.icon) }
-                                        .tint(leftSwipeAction.color)
+                                            .tint(leftSwipeAction.color)
                                     }
                                 }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                     if rightSwipeAction != .none {
                                         Button { handleTaskSwipe(option: rightSwipeAction, task: task) }
                                         label: { Label(rightSwipeAction.rawValue, systemImage: rightSwipeAction.icon) }
-                                        .tint(rightSwipeAction.color)
+                                            .tint(rightSwipeAction.color)
                                     }
                                 }
                             }
@@ -204,7 +212,7 @@ struct InboxView: View {
             .sheet(isPresented: $showingAddSheet) { AddTaskView() }
         }
     }
-
+    
     private func toggleHabit(_ habit: HabitItem) {
         withAnimation {
             habit.completionDates.append(Date())

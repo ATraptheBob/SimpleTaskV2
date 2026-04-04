@@ -16,6 +16,7 @@ final class TaskItem {
     var isCompleted: Bool
     var completionDate: Date?
     var repeatInterval: RepeatInterval?
+    var order: Int = 0
     
     // NEW: Notes and Image attachments
     var notes: String
@@ -23,13 +24,14 @@ final class TaskItem {
     
     @Relationship(deleteRule: .cascade) var subtasks: [SubtaskItem] = []
     
-    init(title: String, dueDate: Date = .now, isCompleted: Bool = false, repeatInterval: RepeatInterval = .none, notes: String = "", imageData: Data? = nil) {
+    init(title: String, dueDate: Date = .now, isCompleted: Bool = false, repeatInterval: RepeatInterval = .none, notes: String = "", imageData: Data? = nil, order: Int = 0) {
         self.title = title
         self.dueDate = dueDate
         self.isCompleted = isCompleted
         self.repeatInterval = repeatInterval
         self.notes = notes
         self.imageData = imageData
+        self.order = order
     }
 }
 

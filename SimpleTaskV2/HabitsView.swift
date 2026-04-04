@@ -20,18 +20,21 @@ struct HabitsView: View {
     
     @State private var showingAddSheet = false
     @State private var habitToEdit: HabitItem?
+    
+    // Shared state to sync Heatmap and Stats
     @State private var selectedMonthIndex: Int = 11
-
+    
     var dailyHabits: [HabitItem] { habits.filter { $0.frequency == .daily } }
     var weeklyHabits: [HabitItem] { habits.filter { $0.frequency == .weekly } }
     var monthlyHabits: [HabitItem] { habits.filter { $0.frequency == .monthly } }
-
+    
     var body: some View {
         NavigationStack {
             ZStack {
                 (isDarkMode ? Color.black : Color.white).ignoresSafeArea()
                 
                 VStack(spacing: 0) {
+                    // HEADER
                     HStack(alignment: .center) {
                         Text("Habits")
                             .font(.system(size: 34, weight: .bold, design: .rounded))
@@ -47,6 +50,7 @@ struct HabitsView: View {
                     .padding(.top, 10)
                     .padding(.bottom, 16)
                     
+                    // Dashboard synchronized with the selected month
                     HabitDashboardPanel(habits: habits, isDarkMode: isDarkMode, selectedMonthIndex: $selectedMonthIndex)
                         .padding(.bottom, 8)
                     
@@ -83,27 +87,29 @@ struct HabitDashboardPanel: View {
         }
         return counts
     }
-
-    // UPDATED: Logic to calculate Average Daily Completion Percentage
+    
+    // STATS CALCULATION
     private var monthlyStats: (total: Int, bestStreak: Int, dailyAvg: Double) {
         guard !months.isEmpty, selectedMonthIndex < months.count else { return (0, 0, 0) }
         let currentMonth = months[selectedMonthIndex]
         let calendar = Calendar.current
         
+        // Filter out the grid-padding dates (only dates in this specific month)
         let monthDates = currentMonth.dates.filter { calendar.isDate($0, equalTo: currentMonth.monthStart, toGranularity: .month) }
-        let totalHabits = max(habits.count, 1)
+        let totalTrackedHabits = max(habits.count, 1)
         
-        // 1. Calculate percentage for each individual day
+        // 1. Calculate percentage for each day: (Completed / Total)
         let dailyPercentages = monthDates.map { date -> Double in
-            let count = dailyCompletions[date] ?? 0
-            return Double(count) / Double(totalHabits)
+            let completedOnDay = dailyCompletions[date] ?? 0
+            return Double(completedOnDay) / Double(totalTrackedHabits)
         }
         
-        // 2. Average those percentages
-        let avgRate = (dailyPercentages.reduce(0, +) / Double(max(monthDates.count, 1))) * 100
+        // 2. Find the average of those daily percentages
+        let avgDailyRate = (dailyPercentages.reduce(0, +) / Double(max(monthDates.count, 1))) * 100
         
-        let total = monthDates.map { dailyCompletions[$0] ?? 0 }.reduce(0, +)
+        let totalVolume = monthDates.map { dailyCompletions[$0] ?? 0 }.reduce(0, +)
         
+        // Month-Specific Streak logic
         var maxStreak = 0
         var currentStreak = 0
         for date in monthDates {
@@ -115,14 +121,16 @@ struct HabitDashboardPanel: View {
             }
         }
         
-        return (total, maxStreak, avgRate)
+        return (totalVolume, maxStreak, avgDailyRate)
     }
-
+    
     var body: some View {
         HStack(alignment: .center, spacing: 30) {
+            // HEATMAP (LEFT)
             HabitHeatmapView(completions: dailyCompletions, isDarkMode: isDarkMode, selectedMonth: $selectedMonthIndex, months: $months)
                 .frame(width: 130)
             
+            // DYNAMIC STATS (RIGHT)
             VStack(alignment: .leading, spacing: 18) {
                 StatRow(icon: "checkmark.seal.fill", color: .pink, title: "MONTH TOTAL", value: "\(monthlyStats.total)", isDarkMode: isDarkMode)
                 StatRow(icon: "flame.fill", color: .orange, title: "MONTH STREAK", value: "\(monthlyStats.bestStreak)", isDarkMode: isDarkMode)
@@ -131,8 +139,7 @@ struct HabitDashboardPanel: View {
                     let today = Calendar.current.startOfDay(for: Date())
                     StatRow(icon: "star.fill", color: .yellow, title: "TODAY", value: "\(dailyCompletions[today] ?? 0)", isDarkMode: isDarkMode)
                 } else {
-                    // UPDATED: Now shows Daily Average %
-                    StatRow(icon: "chart.line.uptrend.xyaxis", color: .blue, title: "DAILY AVG", value: String(format: "%.0f%%", monthlyStats.dailyAvg), isDarkMode: isDarkMode)
+                    StatRow(icon: "percent", color: .blue, title: "DAILY AVG", value: String(format: "%.0f%%", monthlyStats.dailyAvg), isDarkMode: isDarkMode)
                         .transition(.opacity)
                 }
             }
@@ -252,6 +259,7 @@ struct MonthGrid: View {
         }
     }
     
+    // ABSOLUTE COLOR SCALE (Independant of total habit count)
     func color(for count: Int, isFuture: Bool) -> Color {
         if isFuture { return isDarkMode ? Color(white: 0.08) : Color(white: 0.96) }
         switch count {
@@ -282,6 +290,7 @@ struct HabitSection: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .edit
     @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
+    
     let title: String; let habits: [HabitItem]; let editAction: (HabitItem) -> Void; let isDarkMode: Bool
     private let hapticSound = HapticAndSoundManager.shared
     
@@ -360,7 +369,7 @@ struct HabitSection: View {
             try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines()
         }
     }
-
+    
     private func handleHabitSwipe(option: SwipeOption, habit: HabitItem) {
         switch option {
         case .edit: editAction(habit)

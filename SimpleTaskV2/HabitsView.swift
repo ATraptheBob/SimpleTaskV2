@@ -428,11 +428,15 @@ struct HabitSection: View {
     }
 
     private func handleHabitSwipe(option: SwipeOption, habit: HabitItem) {
-        switch option {
-        case .edit: editAction(habit)
-        case .delete: modelContext.delete(habit); try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines()
-        case .toggle: toggleHabit(habit)
-        case .none: break
+            switch option {
+            case .edit: editAction(habit)
+            case .delete:
+                modelContext.delete(habit)
+                try? modelContext.save()
+                WidgetCenter.shared.reloadAllTimelines()
+            case .toggle: toggleHabit(habit)
+            case .date: break // FIX: Added the missing date case (does nothing for habits)
+            case .none: break
+            }
         }
-    }
 }

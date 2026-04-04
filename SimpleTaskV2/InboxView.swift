@@ -11,13 +11,18 @@ struct InboxView: View {
     @State private var showingAddSheet = false
     @State private var isMenuOpen = false
     
-    @State private var selectedTask: TaskItem?
+    @State private var expandedTaskId: UUID? = nil
     @State private var habitToEdit: HabitItem?
+    
+    // Calendar Popup States
+    @State private var taskToReschedule: TaskItem?
+    @State private var tempDate: Date = Date()
     
     private let hapticSound = HapticAndSoundManager.shared
     
     @AppStorage("isDarkMode") private var isDarkMode = true
-    @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .edit
+    
+    @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .date
     @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
     @AppStorage("archiveSetting") private var archiveSetting: String = "Midnight"
 
@@ -38,7 +43,12 @@ struct InboxView: View {
         
         return filtered.sorted { t1, t2 in
             if t1.isCompleted == t2.isCompleted {
-                if t1.order == t2.order { return t1.dueDate < t2.dueDate }
+                if t1.order == t2.order {
+                    if let d1 = t1.dueDate, let d2 = t2.dueDate { return d1 < d2 }
+                    else if t1.dueDate != nil { return true }
+                    else if t2.dueDate != nil { return false }
+                    return false
+                }
                 return t1.order < t2.order
             }
             return !t1.isCompleted
@@ -138,60 +148,25 @@ struct InboxView: View {
                                 Section(header: Text("Tasks").foregroundColor(.pink).bold().padding(.leading, 8).padding(.top, 10)) {
                                     ForEach(activeTasks) { task in
                                         VStack(spacing: 0) {
-                                            VStack(alignment: .leading, spacing: 8) {
-                                                HStack {
-                                                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                                                        .foregroundColor(task.isCompleted ? .pink : .gray)
-                                                        .font(.title2)
-                                                        .contentShape(Circle())
-                                                        .onTapGesture { toggleTask(task) }
-                                                    
-                                                    HStack {
-                                                        Text(task.title)
-                                                            .strikethrough(task.isCompleted)
-                                                            .foregroundColor(task.isCompleted ? .gray : (isDarkMode ? .white : .black))
-                                                        Spacer()
-                                                        if !task.isCompleted {
-                                                            let isOverdue = Calendar.current.startOfDay(for: task.dueDate) < Calendar.current.startOfDay(for: Date())
-                                                            
-                                                            Text(task.dueDate.formatted(.dateTime.month().day()))
-                                                                .font(.caption2)
-                                                                .foregroundColor(isOverdue ? .red.opacity(0.7) : (isDarkMode ? .gray.opacity(0.8) : .gray))
-                                                        }
+                                            TaskRowView(
+                                                task: task,
+                                                isExpanded: expandedTaskId == task.id,
+                                                isDarkMode: isDarkMode,
+                                                toggleTask: { toggleTask(task) },
+                                                onToggleExpand: {
+                                                    if expandedTaskId == task.id {
+                                                        expandedTaskId = nil
+                                                    } else {
+                                                        expandedTaskId = task.id
                                                     }
-                                                    .contentShape(Rectangle())
-                                                    .onTapGesture { selectedTask = task }
-                                                }
-                                                
-                                                if !task.subtasks.isEmpty {
-                                                    VStack(alignment: .leading, spacing: 8) {
-                                                        ForEach(task.subtasks) { subtask in
-                                                            HStack {
-                                                                Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
-                                                                    .foregroundColor(subtask.isCompleted ? .pink : .gray)
-                                                                    .font(.caption)
-                                                                    .contentShape(Circle())
-                                                                    .onTapGesture {
-                                                                        withAnimation {
-                                                                            subtask.isCompleted.toggle()
-                                                                            try? modelContext.save()
-                                                                        }
-                                                                    }
-                                                                
-                                                                Text(subtask.title)
-                                                                    .font(.subheadline)
-                                                                    .strikethrough(subtask.isCompleted)
-                                                                    .foregroundColor(subtask.isCompleted ? .gray : (isDarkMode ? .gray : .black.opacity(0.7)))
-                                                                
-                                                                Spacer()
-                                                            }
-                                                        }
+                                                },
+                                                onOpenCalendar: {
+                                                    tempDate = task.dueDate ?? Date()
+                                                    withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                                        taskToReschedule = task
                                                     }
-                                                    .padding(.leading, 32)
                                                 }
-                                            }
-                                            .padding(.vertical, 12)
-                                            .padding(.horizontal, 16)
+                                            )
                                             .customSwipeActions(
                                                 left: leftSwipeAction,
                                                 right: rightSwipeAction,
@@ -307,13 +282,79 @@ struct InboxView: View {
                     Spacer()
                 }
                 .zIndex(4)
+                
+                // 6. THE CALENDAR POPUP LAYER
+                if let task = taskToReschedule {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                task.dueDate = tempDate
+                                try? modelContext.save()
+                                taskToReschedule = nil
+                            }
+                        }
+                        .zIndex(5)
+                    
+                    VStack(spacing: 20) {
+                        Text("Due Date")
+                            .font(.title2.bold())
+                            .foregroundColor(isDarkMode ? .white : .black)
+                        
+                        DatePicker("", selection: $tempDate, displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                            .tint(.purple)
+                            .labelsHidden()
+                        
+                        HStack(spacing: 15) {
+                            Button(action: {
+                                withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                    task.dueDate = nil
+                                    try? modelContext.save()
+                                    taskToReschedule = nil
+                                }
+                            }) {
+                                Text("Clear Date")
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.red)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .background(isDarkMode ? Color(white: 0.15) : Color(white: 0.95))
+                                    .cornerRadius(12)
+                            }
+                            
+                            Button(action: {
+                                withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                    task.dueDate = Date()
+                                    try? modelContext.save()
+                                    taskToReschedule = nil
+                                }
+                            }) {
+                                Text("Today")
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .background(Color.purple)
+                                    .cornerRadius(12)
+                            }
+                        }
+                    }
+                    .padding(24)
+                    .background(isDarkMode ? Color(white: 0.1) : Color.white)
+                    .cornerRadius(24)
+                    .shadow(color: .black.opacity(0.3), radius: 30, x: 0, y: 15)
+                    .padding(.horizontal, 30)
+                    .zIndex(6)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.92).combined(with: .opacity),
+                        removal: .scale(scale: 0.98).combined(with: .opacity)
+                    ))
+                }
             }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showingAddSheet) {
                 AddTaskView().presentationDetents([.large])
-            }
-            .sheet(item: $selectedTask) { task in
-                AddTaskView(taskToEdit: task).presentationDetents([.large])
             }
             .sheet(item: $habitToEdit) { habit in
                 AddHabitView(habitToEdit: habit).presentationDetents([.large])
@@ -361,9 +402,27 @@ struct InboxView: View {
     
     private func handleTaskSwipe(option: SwipeOption, task: TaskItem) {
         switch option {
-        case .edit: selectedTask = task
-        case .delete: withAnimation { modelContext.delete(task); try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines() }
-        case .toggle: toggleTask(task)
+        case .edit:
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                if expandedTaskId == task.id {
+                    expandedTaskId = nil
+                } else {
+                    expandedTaskId = task.id
+                }
+            }
+        case .delete:
+            withAnimation {
+                modelContext.delete(task)
+                try? modelContext.save()
+                WidgetCenter.shared.reloadAllTimelines()
+            }
+        case .toggle:
+            toggleTask(task)
+        case .date:
+            tempDate = task.dueDate ?? Date()
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                taskToReschedule = task
+            }
         case .none: break
         }
     }
@@ -373,11 +432,264 @@ struct InboxView: View {
         case .edit: habitToEdit = habit
         case .delete: withAnimation { modelContext.delete(habit); try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines() }
         case .toggle: toggleHabit(habit)
+        case .date: break
         case .none: break
         }
     }
 }
 
+// ---------------------------------------------------------
+// REFACTORED INLINE TASK CARD
+// ---------------------------------------------------------
+struct TaskRowView: View {
+    @Bindable var task: TaskItem
+    var isExpanded: Bool
+    var isDarkMode: Bool
+    var toggleTask: () -> Void
+    var onToggleExpand: () -> Void
+    var onOpenCalendar: () -> Void
+    
+    @Environment(\.modelContext) private var modelContext
+    
+    // FIX: Using an Edit Mode toggle specifically for Notes
+    @State private var isEditingNotes = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // HEADER ROW (Always visible)
+            HStack(alignment: .top) {
+                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(task.isCompleted ? .pink : .gray)
+                    .font(.title2)
+                    .contentShape(Circle())
+                    .onTapGesture { toggleTask() }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    if isExpanded {
+                        TextField("Task Title", text: $task.title)
+                            .font(.body)
+                            .foregroundColor(task.isCompleted ? .gray : (isDarkMode ? .white : .black))
+                            .strikethrough(task.isCompleted)
+                    } else {
+                        Text(task.title)
+                            .font(.body)
+                            .foregroundColor(task.isCompleted ? .gray : (isDarkMode ? .white : .black))
+                            .strikethrough(task.isCompleted)
+                    }
+                    
+                    if !task.isCompleted, let date = task.dueDate {
+                        let isOverdue = Calendar.current.startOfDay(for: date) < Calendar.current.startOfDay(for: Date())
+                        Text(date.formatted(.dateTime.month().day()))
+                            .font(.caption2)
+                            .foregroundColor(isOverdue ? .red.opacity(0.7) : (isDarkMode ? .gray.opacity(0.8) : .gray))
+                    }
+                }
+                Spacer()
+            }
+            .contentShape(Rectangle()) // Confines the expand tap to the header ONLY
+            .onTapGesture {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    if isExpanded {
+                        isEditingNotes = false // Reset notes to view mode
+                        try? modelContext.save()
+                        onToggleExpand()
+                    } else {
+                        onToggleExpand()
+                    }
+                }
+            }
+            
+            // EXPANDED DETAILS
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 16) {
+                    
+                    // 1. SUBTASKS (Top Priority)
+                    if !task.subtasks.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(task.subtasks) { subtask in
+                                SubtaskRowView(
+                                    subtask: subtask,
+                                    isDarkMode: isDarkMode,
+                                    onDelete: {
+                                        withAnimation {
+                                            if let idx = task.subtasks.firstIndex(of: subtask) {
+                                                task.subtasks.remove(at: idx)
+                                                modelContext.delete(subtask)
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        .padding(.leading, 32)
+                    }
+                    
+                    // 2. NOTES (Always Visible, with Edit Button)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Notes").font(.caption.bold()).foregroundColor(.gray)
+                            Spacer()
+                            Button(action: {
+                                withAnimation {
+                                    isEditingNotes.toggle()
+                                    if !isEditingNotes { try? modelContext.save() }
+                                }
+                            }) {
+                                Text(isEditingNotes ? "Done" : (task.notes.isEmpty ? "Add" : "Edit"))
+                                    .font(.caption.bold())
+                                    .foregroundColor(isEditingNotes ? .green : .gray)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 4)
+                                    .background(isDarkMode ? Color(white: 0.25) : Color(white: 0.85))
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain) // FIX: Isolates tap target
+                        }
+                        
+                        if isEditingNotes {
+                            TextField("Add markdown notes or links...", text: $task.notes, axis: .vertical)
+                                .font(.callout)
+                                .foregroundColor(isDarkMode ? .white : .black)
+                                .padding(12)
+                                .background(isDarkMode ? Color.black.opacity(0.4) : Color.white.opacity(0.8))
+                                .cornerRadius(12)
+                        } else {
+                            if task.notes.isEmpty {
+                                Text("No notes provided.")
+                                    .font(.callout)
+                                    .foregroundColor(.gray)
+                                    .padding(.horizontal, 4)
+                                    .onTapGesture { withAnimation { isEditingNotes = true } }
+                            } else {
+                                // FIX: .init() allows standard URLs to be natively formatted as clickable links!
+                                Text(.init(task.notes))
+                                    .font(.callout)
+                                    .tint(.blue)
+                                    .foregroundColor(isDarkMode ? .white.opacity(0.9) : .black.opacity(0.9))
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(isDarkMode ? Color.black.opacity(0.2) : Color.white.opacity(0.5))
+                                    .cornerRadius(12)
+                            }
+                        }
+                    }
+                    
+                    // 3. IMAGE
+                    if let data = task.imageData, let uiImage = UIImage(data: data) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 180)
+                            .cornerRadius(12)
+                            .contextMenu {
+                                Button("Remove Image", role: .destructive) {
+                                    withAnimation {
+                                        task.imageData = nil
+                                        try? modelContext.save()
+                                    }
+                                }
+                            }
+                    }
+                    
+                    // 4. MICROBUTTONS ROW (Isolated Buttons)
+                    HStack(spacing: 16) {
+                        Spacer()
+                        
+                        Button(action: onOpenCalendar) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.purple)
+                                .frame(width: 32, height: 32)
+                                .background(isDarkMode ? Color(white: 0.25) : Color(white: 0.85))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain) // FIX: Prevents mass-activation
+                        
+                        Button(action: {
+                            withAnimation { task.subtasks.append(SubtaskItem(title: "")) }
+                        }) {
+                            Image(systemName: "list.bullet")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.blue)
+                                .frame(width: 32, height: 32)
+                                .background(isDarkMode ? Color(white: 0.25) : Color(white: 0.85))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain) // FIX: Prevents mass-activation
+                        
+                        PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                            Image(systemName: task.imageData == nil ? "photo" : "photo.badge.checkmark")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.green)
+                                .frame(width: 32, height: 32)
+                                .background(isDarkMode ? Color(white: 0.25) : Color(white: 0.85))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain) // FIX: Prevents mass-activation
+                        .onChange(of: selectedPhotoItem) { _, newItem in
+                            Task {
+                                if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                                    DispatchQueue.main.async {
+                                        withAnimation {
+                                            task.imageData = data
+                                            try? modelContext.save()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+        .background(isExpanded ? (isDarkMode ? Color(white: 0.15) : Color(white: 0.95)) : Color.clear)
+        .cornerRadius(isExpanded ? 16 : 0)
+    }
+}
+
+// ---------------------------------------------------------
+// INLINE SUBTASK ROW
+// ---------------------------------------------------------
+struct SubtaskRowView: View {
+    @Bindable var subtask: SubtaskItem
+    var isDarkMode: Bool
+    var onDelete: () -> Void
+    
+    var body: some View {
+        HStack {
+            Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                .foregroundColor(subtask.isCompleted ? .pink : .gray)
+                .font(.caption)
+                .onTapGesture {
+                    withAnimation { subtask.isCompleted.toggle() }
+                }
+            
+            TextField("Step", text: $subtask.title)
+                .font(.subheadline)
+                .strikethrough(subtask.isCompleted)
+                .foregroundColor(subtask.isCompleted ? .gray : (isDarkMode ? .gray : .black.opacity(0.7)))
+            
+            Spacer()
+            
+            if subtask.title.isEmpty || subtask.isCompleted {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.gray)
+                    .padding(.horizontal, 4)
+                    .onTapGesture { onDelete() }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// ---------------------------------------------------------
+// OTHER EXISTING COMPONENTS
+// ---------------------------------------------------------
 struct HamburgerButton: View {
     @Binding var isOpen: Bool
     @AppStorage("isDarkMode") private var isDarkMode = true
@@ -431,7 +743,6 @@ struct SwipeRowModifier: ViewModifier {
     
     func body(content: Content) -> some View {
         ZStack {
-            // Background Layer (The Cutout)
             GeometryReader { geo in
                 ZStack {
                     if offset > 0 {
@@ -468,14 +779,11 @@ struct SwipeRowModifier: ViewModifier {
                 }
             }
             
-            // Foreground Layer (The Sliding Row)
             content
-                // FIX 2: Reverted background to match exactly with the app theme so it is completely flush
                 .background(isDarkMode ? Color.black : Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .offset(x: offset)
                 .gesture(
-                    // FIX 1: minimumDistance of 30 allows vertical scrolling to dominate before dragging starts
                     DragGesture(minimumDistance: 30)
                         .onChanged { value in
                             let drag = value.translation.width

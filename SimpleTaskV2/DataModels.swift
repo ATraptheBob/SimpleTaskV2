@@ -12,26 +12,25 @@ enum RepeatInterval: String, Codable, CaseIterable {
 final class TaskItem {
     @Attribute(.unique) var id: UUID = UUID()
     var title: String
-    var dueDate: Date
+    var dueDate: Date? // FIX: Now completely optional
     var isCompleted: Bool
     var completionDate: Date?
     var repeatInterval: RepeatInterval?
-    var order: Int = 0
     
-    // NEW: Notes and Image attachments
     var notes: String
     @Attribute(.externalStorage) var imageData: Data?
     
     @Relationship(deleteRule: .cascade) var subtasks: [SubtaskItem] = []
     
-    init(title: String, dueDate: Date = .now, isCompleted: Bool = false, repeatInterval: RepeatInterval = .none, notes: String = "", imageData: Data? = nil, order: Int = 0) {
+    var order: Int = 0 // Tracks drag-and-drop ordering
+    
+    init(title: String, dueDate: Date? = nil, isCompleted: Bool = false, repeatInterval: RepeatInterval = .none, notes: String = "", imageData: Data? = nil) {
         self.title = title
         self.dueDate = dueDate
         self.isCompleted = isCompleted
         self.repeatInterval = repeatInterval
         self.notes = notes
         self.imageData = imageData
-        self.order = order
     }
 }
 
@@ -53,57 +52,26 @@ final class HabitItem {
     var title: String
     var frequency: RepeatInterval?
     var completionDates: [Date] = []
-    var activeDays: [Int] = [1, 2, 3, 4, 5, 6, 7]
     
-    // The mathematically perfect streak calculator
+    var activeDays: [Int] = []
+    
     var streak: Int {
-        guard !completionDates.isEmpty else { return 0 }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let pastCompletions = completionDates.map { calendar.startOfDay(for: $0) }.sorted(by: >)
+        guard let latestCompletion = pastCompletions.first else { return 0 }
         
-        let cal = Calendar.current
-        let now = Date()
+        let daysSinceLast = calendar.dateComponents([.day], from: latestCompletion, to: today).day ?? 0
+        if daysSinceLast > 1 { return 0 }
         
-        // 1. Convert all dates into "Absolute Time Blocks" (Days, Weeks, or Months since year 1)
-        let periods: [Int] = completionDates.compactMap { date in
-            switch frequency ?? .daily {
-            case .daily: return cal.ordinality(of: .day, in: .era, for: date)
-            case .weekly: return cal.ordinality(of: .weekOfYear, in: .era, for: date)
-            case .monthly: return cal.ordinality(of: .month, in: .era, for: date)
-            case .none: return cal.ordinality(of: .day, in: .era, for: date)
-            }
-        }
-        
-        // 2. Remove duplicate check-ins on the same day/week and sort them newest to oldest
-        let uniquePeriods = Array(Set(periods)).sorted(by: >)
-        
-        // 3. Find out what the "Current" time block is right now
-        let currentPeriod: Int
-        switch frequency ?? .daily {
-        case .daily: currentPeriod = cal.ordinality(of: .day, in: .era, for: now) ?? 0
-        case .weekly: currentPeriod = cal.ordinality(of: .weekOfYear, in: .era, for: now) ?? 0
-        case .monthly: currentPeriod = cal.ordinality(of: .month, in: .era, for: now) ?? 0
-        case .none: currentPeriod = cal.ordinality(of: .day, in: .era, for: now) ?? 0
-        }
-        
-        guard let latestCompletion = uniquePeriods.first else { return 0 }
-        
-        // 4. If the most recent completion is older than "Yesterday" (or last week/month), the streak is dead.
-        if latestCompletion < (currentPeriod - 1) {
-            return 0
-        }
-        
-        // 5. Count backwards safely to find the consecutive streak
         var currentStreak = 0
-        var expectedPeriod = latestCompletion
-        
-        for period in uniquePeriods {
-            if period == expectedPeriod {
+        var expectedDate = latestCompletion
+        for date in pastCompletions {
+            if date == expectedDate {
                 currentStreak += 1
-                expectedPeriod -= 1 // Move the target back by 1 block
-            } else {
-                break // We hit a gap!
-            }
+                expectedDate = calendar.date(byAdding: .day, value: -1, to: expectedDate)!
+            } else { break }
         }
-        
         return currentStreak
     }
     
@@ -130,7 +98,7 @@ final class PomodoroSession {
     @Attribute(.unique) var id: UUID = UUID()
     var date: Date
     var durationMinutes: Int
-    var subject: String // NEW: Tracks what you were studying
+    var subject: String
     
     init(durationMinutes: Int, subject: String = "General", date: Date = .now) {
         self.durationMinutes = durationMinutes

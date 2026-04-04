@@ -12,9 +12,11 @@ struct AddTaskView: View {
     @FocusState private var isStepFocused: Bool
     
     @State private var title = ""
+    
+    // FIX: Toggles date optionality
+    @State private var hasDueDate = false
     @State private var dueDate = Date()
     
-    // FIX: Explicitly declared as RepeatInterval.none to avoid Optional enum ambiguity
     @State private var repeatInterval: RepeatInterval = RepeatInterval.none
     
     @State private var notes = ""
@@ -37,8 +39,14 @@ struct AddTaskView: View {
                             .focused($isTitleFocused)
                             .foregroundColor(.green)
                         
-                        DatePicker("Due Date", selection: $dueDate)
+                        // FIX: Toggle switch for adding a due date
+                        Toggle("Set Due Date", isOn: $hasDueDate.animation())
                             .foregroundColor(.blue)
+                        
+                        if hasDueDate {
+                            DatePicker("Date", selection: $dueDate, displayedComponents: .date)
+                                .foregroundColor(.blue)
+                        }
                         
                         Picker("Repeat", selection: $repeatInterval) {
                             ForEach(RepeatInterval.allCases, id: \.self) { interval in
@@ -120,11 +128,14 @@ struct AddTaskView: View {
             .onAppear {
                 if let task = taskToEdit {
                     title = task.title
-                    dueDate = task.dueDate
                     
-                    // Uses explicit non-optional to satisfy the compiler
+                    // FIX: Load existing date correctly
+                    if let existingDate = task.dueDate {
+                        dueDate = existingDate
+                        hasDueDate = true
+                    }
+                    
                     repeatInterval = task.repeatInterval ?? RepeatInterval.none
-                    
                     notes = task.notes
                     selectedImageData = task.imageData
                     steps = task.subtasks.map { $0.title }
@@ -140,9 +151,12 @@ struct AddTaskView: View {
                     Button("Save") {
                         HapticAndSoundManager.shared.triggerHapticSuccess()
                         
+                        // Ensure optional date is handled
+                        let finalDate: Date? = hasDueDate ? dueDate : nil
+                        
                         if let task = taskToEdit {
                             task.title = title
-                            task.dueDate = dueDate
+                            task.dueDate = finalDate
                             task.repeatInterval = repeatInterval
                             task.notes = notes
                             task.imageData = selectedImageData
@@ -155,7 +169,7 @@ struct AddTaskView: View {
                             }
                         } else {
                             let task = TaskItem(
-                                title: title, dueDate: dueDate,
+                                title: title, dueDate: finalDate,
                                 repeatInterval: repeatInterval, notes: notes, imageData: selectedImageData
                             )
                             modelContext.insert(task)

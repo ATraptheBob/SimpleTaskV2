@@ -38,6 +38,11 @@ struct AddTaskView: View {
                         TextField("Task Title", text: $title)
                             .focused($isTitleFocused)
                             .foregroundColor(.green)
+                            .onChange(of: title) { oldValue, newValue in
+                                if newValue.count > 100 {
+                                    title = String(newValue.prefix(100))
+                                }
+                            }
                         
                         // FIX: Toggle switch for adding a due date
                         Toggle("Set Due Date", isOn: $hasDueDate.animation())
@@ -62,6 +67,11 @@ struct AddTaskView: View {
                             .focused($isNotesFocused)
                             .lineLimit(3...8)
                             .foregroundColor(isDarkMode ? .white : .black)
+                            .onChange(of: notes) { oldValue, newValue in
+                                if newValue.count > 5000 {
+                                    notes = String(newValue.prefix(5000))
+                                }
+                            }
                     }
                     .listRowBackground(isDarkMode ? Color(white: 0.12) : Color.white)
                     
@@ -78,6 +88,11 @@ struct AddTaskView: View {
                             TextField("Add a step...", text: $newStepTitle)
                                 .focused($isStepFocused)
                                 .onSubmit(addStep)
+                                .onChange(of: newStepTitle) { oldValue, newValue in
+                                    if newValue.count > 100 {
+                                        newStepTitle = String(newValue.prefix(100))
+                                    }
+                                }
                             
                             Button(action: addStep) {
                                 Image(systemName: "plus.circle.fill")
@@ -112,8 +127,16 @@ struct AddTaskView: View {
                         .onChange(of: selectedPhotoItem) { _, newItem in
                             Task {
                                 if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                                    DispatchQueue.main.async {
-                                        withAnimation { selectedImageData = data }
+                                    // 🛡️ SECURITY: Prevent memory exhaustion from large files (>10MB)
+                                    let maxSize = 10 * 1024 * 1024
+                                    if data.count <= maxSize {
+                                        DispatchQueue.main.async {
+                                            withAnimation { selectedImageData = data }
+                                        }
+                                    } else {
+                                        DispatchQueue.main.async {
+                                            selectedPhotoItem = nil // Reject file
+                                        }
                                     }
                                 }
                             }
@@ -201,6 +224,9 @@ struct AddTaskView: View {
     private func addStep() {
         let trimmed = newStepTitle.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
+        // 🛡️ SECURITY: Limit number of steps to prevent resource exhaustion
+        guard steps.count < 50 else { return }
+
         withAnimation {
             steps.append(trimmed)
             newStepTitle = ""

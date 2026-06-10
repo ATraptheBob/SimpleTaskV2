@@ -75,23 +75,35 @@ struct HabitDashboardPanel: View {
     
     @State private var months: [MonthData] = []
     
+    // Cache the mapping to avoid redundant iterations
+    private var habitCompletionsCache: [UUID: Set<Date>] {
+        let calendar = Calendar.current
+        var cache: [UUID: Set<Date>] = [:]
+        for habit in habits {
+            cache[habit.id] = Set(habit.completionDates.map { calendar.startOfDay(for: $0) })
+        }
+        return cache
+    }
+
     var dailyCompletions: [Date: Int] {
         var counts: [Date: Int] = [:]
-        let calendar = Calendar.current
+        let cache = habitCompletionsCache
         for habit in habits {
-            let days = Set(habit.completionDates.map { calendar.startOfDay(for: $0) })
+            let days = cache[habit.id] ?? []
             for day in days { counts[day, default: 0] += 1 }
         }
         return counts
     }
 
-    private var monthlyStats: (total: Int, bestStreak: Int, dailyAvg: Double) {
+    private func getMonthlyStats(completions: [Date: Int]) -> (total: Int, bestStreak: Int, dailyAvg: Double) {
         guard !months.isEmpty, selectedMonthIndex < months.count else { return (0, 0, 0) }
         let currentMonth = months[selectedMonthIndex]
         let calendar = Calendar.current
         
         let monthDates = currentMonth.dates.filter { calendar.isDate($0, equalTo: currentMonth.monthStart, toGranularity: .month) }
         
+        let cache = habitCompletionsCache
+
         // DYNAMIC ACCURACY: Only grade percentages based on habits scheduled for that specific day
         let dailyPercentages = monthDates.map { date -> Double in
             let weekday = calendar.component(.weekday, from: date)
@@ -100,20 +112,20 @@ struct HabitDashboardPanel: View {
             if activeHabitsForDay.isEmpty { return 1.0 } // 100% if nothing was scheduled!
             
             let completedActive = activeHabitsForDay.filter { habit in
-                let completions = Set(habit.completionDates.map { calendar.startOfDay(for: $0) })
-                return completions.contains(date)
+                let completionsSet = cache[habit.id] ?? []
+                return completionsSet.contains(date)
             }.count
             
             return Double(completedActive) / Double(activeHabitsForDay.count)
         }
         
         let avgDailyRate = (dailyPercentages.reduce(0, +) / Double(max(monthDates.count, 1))) * 100
-        let totalVolume = monthDates.map { dailyCompletions[$0] ?? 0 }.reduce(0, +)
+        let totalVolume = monthDates.map { completions[$0] ?? 0 }.reduce(0, +)
         
         var maxStreak = 0
         var currentStreak = 0
         for date in monthDates {
-            if (dailyCompletions[date] ?? 0) > 0 {
+            if (completions[date] ?? 0) > 0 {
                 currentStreak += 1
                 maxStreak = max(maxStreak, currentStreak)
             } else {
@@ -125,19 +137,22 @@ struct HabitDashboardPanel: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 30) {
-            HabitHeatmapView(completions: dailyCompletions, isDarkMode: isDarkMode, selectedMonth: $selectedMonthIndex, months: $months)
+        let currentCompletions = dailyCompletions
+        let stats = getMonthlyStats(completions: currentCompletions)
+
+        return HStack(alignment: .center, spacing: 30) {
+            HabitHeatmapView(completions: currentCompletions, isDarkMode: isDarkMode, selectedMonth: $selectedMonthIndex, months: $months)
                 .frame(width: 130)
             
             VStack(alignment: .leading, spacing: 18) {
-                StatRow(icon: "checkmark.seal.fill", color: .pink, title: "MONTH TOTAL", value: "\(monthlyStats.total)", isDarkMode: isDarkMode)
-                StatRow(icon: "flame.fill", color: .orange, title: "MONTH STREAK", value: "\(monthlyStats.bestStreak)", isDarkMode: isDarkMode)
+                StatRow(icon: "checkmark.seal.fill", color: .pink, title: "MONTH TOTAL", value: "\(stats.total)", isDarkMode: isDarkMode)
+                StatRow(icon: "flame.fill", color: .orange, title: "MONTH STREAK", value: "\(stats.bestStreak)", isDarkMode: isDarkMode)
                 
                 if selectedMonthIndex == 11 {
                     let today = Calendar.current.startOfDay(for: Date())
-                    StatRow(icon: "star.fill", color: .yellow, title: "TODAY", value: "\(dailyCompletions[today] ?? 0)", isDarkMode: isDarkMode)
+                    StatRow(icon: "star.fill", color: .yellow, title: "TODAY", value: "\(currentCompletions[today] ?? 0)", isDarkMode: isDarkMode)
                 } else {
-                    StatRow(icon: "percent", color: .blue, title: "DAILY AVG", value: String(format: "%.0f%%", monthlyStats.dailyAvg), isDarkMode: isDarkMode)
+                    StatRow(icon: "percent", color: .blue, title: "DAILY AVG", value: String(format: "%.0f%%", stats.dailyAvg), isDarkMode: isDarkMode)
                         .transition(.opacity)
                 }
             }

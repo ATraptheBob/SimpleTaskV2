@@ -272,6 +272,7 @@ struct InboxView: View {
                                 .background(Color.pink)
                                 .clipShape(Circle())
                                 .shadow(color: .pink.opacity(0.4), radius: 5, x: 0, y: 3)
+                                .accessibilityLabel("Add New Task")
                         }
                         .opacity(isMenuOpen ? 0 : 1)
                         .animation(.easeInOut, value: isMenuOpen)
@@ -603,6 +604,7 @@ struct TaskRowView: View {
                                 .frame(width: 32, height: 32)
                                 .background(isDarkMode ? Color(white: 0.25) : Color(white: 0.85))
                                 .clipShape(Circle())
+                                .accessibilityLabel("Reschedule Task")
                         }
                         .buttonStyle(.plain) // FIX: Prevents mass-activation
                         
@@ -615,6 +617,7 @@ struct TaskRowView: View {
                                 .frame(width: 32, height: 32)
                                 .background(isDarkMode ? Color(white: 0.25) : Color(white: 0.85))
                                 .clipShape(Circle())
+                                .accessibilityLabel("Add Subtask")
                         }
                         .buttonStyle(.plain) // FIX: Prevents mass-activation
                         
@@ -625,6 +628,7 @@ struct TaskRowView: View {
                                 .frame(width: 32, height: 32)
                                 .background(isDarkMode ? Color(white: 0.25) : Color(white: 0.85))
                                 .clipShape(Circle())
+                                .accessibilityLabel(task.imageData == nil ? "Attach Image" : "Change Image")
                         }
                         .buttonStyle(.plain) // FIX: Prevents mass-activation
                         .onChange(of: selectedPhotoItem) { _, newItem in
@@ -705,6 +709,7 @@ struct HamburgerButton: View {
             }
         }
         .frame(width: 44, height: 44, alignment: .leading)
+        .accessibilityLabel(isOpen ? "Close Menu" : "Open Menu")
     }
 }
 

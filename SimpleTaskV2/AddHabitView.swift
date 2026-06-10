@@ -25,6 +25,11 @@ struct AddHabitView: View {
                     Section(header: Text("Habit Details").foregroundColor(.gray)) {
                         TextField("Habit Title", text: $title)
                             .foregroundColor(.orange)
+                            .onChange(of: title) { oldValue, newValue in
+                                if newValue.count > 100 {
+                                    title = String(newValue.prefix(100))
+                                }
+                            }
                         
                         Picker("Frequency", selection: $frequency) {
                             ForEach(RepeatInterval.allCases, id: \.self) { interval in

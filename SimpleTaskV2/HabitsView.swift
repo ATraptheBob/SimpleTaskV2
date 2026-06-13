@@ -401,12 +401,18 @@ struct HabitSection: View {
         let completions = Set(habit.completionDates.map { calendar.startOfDay(for: $0) })
         let activeDays = habit.activeDays
         
+        var currentDay = checkDate
+        var currentWeekday = calendar.component(.weekday, from: currentDay)
+
         for i in 0..<365 {
-            guard let day = calendar.date(byAdding: .day, value: -i, to: checkDate) else { continue }
-            let weekday = calendar.component(.weekday, from: day)
-            let isCompleted = completions.contains(day)
+            defer {
+                currentDay = calendar.date(byAdding: .day, value: -1, to: currentDay) ?? currentDay
+                currentWeekday = currentWeekday == 1 ? 7 : currentWeekday - 1
+            }
+
+            let isCompleted = completions.contains(currentDay)
             
-            if activeDays.contains(weekday) {
+            if activeDays.contains(currentWeekday) {
                 if isCompleted { streak += 1 }
                 else {
                     if i == 0 { continue } // Missing today hasn't broken it yet

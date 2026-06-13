@@ -51,6 +51,20 @@ struct SimpleTaskV2App: App {
         
         let allTasks = (try? context.fetch(FetchDescriptor<TaskItem>())) ?? []
         let allHabits = (try? context.fetch(FetchDescriptor<HabitItem>())) ?? []
+        for habit in allHabits {
+            habit.updateStreak()
+        }
+
+        let dueHabits = allHabits.filter { habit in
+            !habit.completionDates.contains { date in
+                switch habit.frequency ?? .daily {
+                case .daily: return calendar.isDateInToday(date)
+                case .weekly: return calendar.isDate(date, equalTo: Date(), toGranularity: .weekOfYear)
+                case .monthly: return calendar.isDate(date, equalTo: Date(), toGranularity: .month)
+                case .none: return false
+                }
+            }
+        }
         
         let scheduler = SmartNotificationScheduler()
         scheduler.schedule(allTasks: allTasks, allHabits: allHabits, notificationManager: NotificationManager.shared)

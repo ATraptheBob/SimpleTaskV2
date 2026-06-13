@@ -152,10 +152,13 @@ struct AddTaskView: View {
                 if let task = taskToEdit {
                     title = task.title
                     
-                    // FIX: Load existing date correctly
+                    // FIX: Load existing date correctly or reset state
                     if let existingDate = task.dueDate {
                         dueDate = existingDate
                         hasDueDate = true
+                    } else {
+                        dueDate = Date()
+                        hasDueDate = false
                     }
                     
                     repeatInterval = task.repeatInterval ?? RepeatInterval.none

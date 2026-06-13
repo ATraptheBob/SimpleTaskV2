@@ -6,30 +6,85 @@
 //
 
 import XCTest
+@testable import SimpleTaskV2
 
-final class SimpleTaskV2Tests: XCTestCase {
+final class HabitItemStreakTests: XCTestCase {
+
+    var calendar: Calendar!
+    var today: Date!
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+        calendar = Calendar.current
+        today = calendar.startOfDay(for: Date())
     }
 
     override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+        calendar = nil
+        today = nil
     }
 
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // Any test you write for XCTest can be annotated as throws and async.
-        // Mark your test throws to produce an unexpected failure when your test encounters an uncaught error.
-        // Mark your test async to allow awaiting for asynchronous code to complete. Check the results with assertions afterwards.
+    func testStreak_withNoCompletionDates_returnsZero() {
+        let habit = HabitItem(title: "Read")
+        XCTAssertEqual(habit.streak, 0)
     }
 
-    func testPerformanceExample() throws {
-        // This is an example of a performance test case.
-        measure {
-            // Put the code you want to measure the time of here.
-        }
+    func testStreak_withOnlyToday_returnsOne() {
+        let habit = HabitItem(title: "Read")
+        habit.completionDates = [today]
+        XCTAssertEqual(habit.streak, 1)
     }
 
+    func testStreak_withOnlyYesterday_returnsOne() {
+        let habit = HabitItem(title: "Read")
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        habit.completionDates = [yesterday]
+        XCTAssertEqual(habit.streak, 1)
+    }
+
+    func testStreak_withTwoDaysAgo_returnsZero() {
+        let habit = HabitItem(title: "Read")
+        let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: today)!
+        habit.completionDates = [twoDaysAgo]
+        XCTAssertEqual(habit.streak, 0)
+    }
+
+    func testStreak_withConsecutiveDaysEndingToday_returnsStreak() {
+        let habit = HabitItem(title: "Read")
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: today)!
+
+        habit.completionDates = [today, yesterday, twoDaysAgo]
+        XCTAssertEqual(habit.streak, 3)
+    }
+
+    func testStreak_withConsecutiveDaysEndingYesterday_returnsStreak() {
+        let habit = HabitItem(title: "Read")
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: today)!
+        let threeDaysAgo = calendar.date(byAdding: .day, value: -3, to: today)!
+
+        habit.completionDates = [yesterday, twoDaysAgo, threeDaysAgo]
+        XCTAssertEqual(habit.streak, 3)
+    }
+
+    func testStreak_withGapInCompletions_returnsStreakUntilGap() {
+        let habit = HabitItem(title: "Read")
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: today)!
+        let fourDaysAgo = calendar.date(byAdding: .day, value: -4, to: today)!
+        let fiveDaysAgo = calendar.date(byAdding: .day, value: -5, to: today)!
+
+        // streak should only count today, yesterday, 2 days ago = 3
+        habit.completionDates = [today, yesterday, twoDaysAgo, fourDaysAgo, fiveDaysAgo]
+        XCTAssertEqual(habit.streak, 3)
+    }
+
+    func testStreak_withUnsortedDates_returnsCorrectStreak() {
+        let habit = HabitItem(title: "Read")
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: today)!
+
+        habit.completionDates = [yesterday, today, twoDaysAgo]
+        XCTAssertEqual(habit.streak, 3)
+    }
 }

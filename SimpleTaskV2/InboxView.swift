@@ -630,7 +630,7 @@ struct TaskRowView: View {
                                 .clipShape(Circle())
                                 .accessibilityLabel(task.imageData == nil ? "Attach Image" : "Change Image")
                         }
-                        .buttonStyle(.plain) // FIX: Prevents mass-activation
+                        .buttonStyle(.plain) // FIX: Prevents mass-activation of the list row
                         .onChange(of: selectedPhotoItem) { _, newItem in
                             Task {
                                 if let data = try? await newItem?.loadTransferable(type: Data.self) {

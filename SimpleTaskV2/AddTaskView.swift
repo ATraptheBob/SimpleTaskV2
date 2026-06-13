@@ -124,6 +124,7 @@ struct AddTaskView: View {
                             Label(selectedImageData == nil ? "Attach Image" : "Change Image", systemImage: "photo")
                                 .foregroundColor(.blue)
                         }
+                        .buttonStyle(.plain) // FIX: Prevents mass-activation
                         .onChange(of: selectedPhotoItem) { _, newItem in
                             Task {
                                 if let data = try? await newItem?.loadTransferable(type: Data.self) {

@@ -1,4 +1,10 @@
-## 2024-06-10 - Unbounded Local Data Input Resource Exhaustion
-**Vulnerability:** CoreData/SwiftData entities allowed unbounded text inputs (title, notes) and unvalidated image sizes, causing UI rendering freezes and potential JetSam memory crashes when excessively large strings or 100MB+ images were loaded into SwiftUI view states.
-**Learning:** Even entirely local, offline apps require strict input bounds. Local persistence frameworks can be easily DOSed by the user (or via synced external data) if arbitrary sizes are allowed to serialize into the main context or views.
-**Prevention:** Always enforce logical limits directly on SwiftUI text fields using `.onChange` text truncation, strictly limit unbounded arrays (like steps), and validate `Data` object sizes before persisting them.
+# 2024-05-18
+
+**Vulnerability:**
+Unimplemented data deletion functionality leaving user data exposed when they intend to erase it. The 'Erase All Data' action was a non-functional stub.
+
+**Learning:**
+Security isn't just about preventing unauthorized access; it's also about fulfilling user expectations regarding data lifecycle. If an application provides a mechanism to delete sensitive user data, that mechanism must be fully functional. A stub that pretends to delete data but does not is a security flaw that compromises data minimization and user autonomy.
+
+**Prevention:**
+Always verify that data deletion features perform the requested operation on the underlying data store (e.g., SwiftData `ModelContext`). Additionally, enforce confirmation prompts for destructive actions to prevent accidental data loss. Implement integration tests that verify records are actually removed from the persistent store when deletion actions are triggered.

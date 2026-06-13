@@ -1,6 +1,10 @@
 import SwiftUI
+import SwiftData
 
 struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @State private var showingDeleteConfirmation = false
+
     // Focus Settings
     @AppStorage("pomodoroDuration") private var pomodoroDuration = 25
     @AppStorage("breakDuration") private var breakDuration = 5
@@ -91,11 +95,19 @@ struct SettingsView: View {
                         }
                     }
                     
-                    Button(action: { print("Deleting...") }) {
+                    Button(action: { showingDeleteConfirmation = true }) {
                         HStack {
                             Image(systemName: "trash").foregroundColor(.red)
                             Text("Erase All Data").foregroundColor(.red)
                         }
+                    }
+                    .alert("Erase All Data", isPresented: $showingDeleteConfirmation) {
+                        Button("Cancel", role: .cancel) {}
+                        Button("Delete", role: .destructive) {
+                            eraseAllData()
+                        }
+                    } message: {
+                        Text("Are you sure you want to permanently delete all tasks, habits, and focus sessions? This action cannot be undone.")
                     }
                 }
                 .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
@@ -104,5 +116,16 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .toolbar(.hidden, for: .tabBar)
+    }
+
+    private func eraseAllData() {
+        do {
+            try modelContext.delete(model: TaskItem.self)
+            try modelContext.delete(model: SubtaskItem.self)
+            try modelContext.delete(model: HabitItem.self)
+            try modelContext.delete(model: PomodoroSession.self)
+        } catch {
+            print("Failed to erase all data: \(error)")
+        }
     }
 }

@@ -7,7 +7,7 @@ struct StatsView: View {
     @Query private var sessions: [PomodoroSession]
     @AppStorage("isDarkMode") private var isDarkMode = true
     
-    var totalCompletedTasks: Int { allTasks.filter { $0.isCompleted }.count }
+    var totalCompletedTasks: Int { allTasks.reduce(into: 0) { count, task in if task.isCompleted { count += 1 } } }
     var bestStreak: Int { habits.map { $0.streak }.max() ?? 0 }
     
     var totalFocusHours: Double {

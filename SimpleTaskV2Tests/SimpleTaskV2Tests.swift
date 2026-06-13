@@ -6,6 +6,8 @@
 //
 
 import XCTest
+import UserNotifications
+@testable import SimpleTaskV2
 
 final class SimpleTaskV2Tests: XCTestCase {
 
@@ -32,4 +34,52 @@ final class SimpleTaskV2Tests: XCTestCase {
         }
     }
 
+    func testScheduleStreakRescue_WithHabitName_SchedulesNotification() async throws {
+        // Arrange
+        let center = UNUserNotificationCenter.current()
+        center.removeAllPendingNotificationRequests()
+        let habitName = "Reading"
+
+        // Act
+        NotificationManager.shared.scheduleStreakRescue(habitName: habitName)
+
+        // Wait briefly for the notification center to update its pending requests
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+
+        // Assert
+        let pendingRequests = await center.pendingNotificationRequests()
+        let request = pendingRequests.first(where: { $0.identifier == "streak_rescue" })
+
+        XCTAssertNotNil(request, "Streak rescue notification should be scheduled.")
+        XCTAssertEqual(request?.content.title, "Save Your Streak! 🔥")
+        XCTAssertEqual(request?.content.body, "You haven't completed 'Reading' yet today. Don't lose your progress!")
+
+        if let trigger = request?.trigger as? UNCalendarNotificationTrigger {
+            XCTAssertEqual(trigger.dateComponents.hour, 21)
+            XCTAssertEqual(trigger.dateComponents.minute, 0)
+            XCTAssertFalse(trigger.repeats, "Streak rescue should not repeat.")
+        } else {
+            XCTFail("Trigger should be a UNCalendarNotificationTrigger")
+        }
+    }
+
+    func testScheduleStreakRescue_WithNilHabitName_RemovesExistingAndDoesNotScheduleNew() async throws {
+        // Arrange
+        let center = UNUserNotificationCenter.current()
+        center.removeAllPendingNotificationRequests()
+        NotificationManager.shared.scheduleStreakRescue(habitName: "Reading")
+        try await Task.sleep(nanoseconds: 100_000_000)
+        var pendingRequests = await center.pendingNotificationRequests()
+        XCTAssertTrue(pendingRequests.contains(where: { $0.identifier == "streak_rescue" }), "Initial notification should be scheduled.")
+
+        // Act
+        NotificationManager.shared.scheduleStreakRescue(habitName: nil)
+
+        // Wait briefly
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        // Assert
+        pendingRequests = await center.pendingNotificationRequests()
+        XCTAssertFalse(pendingRequests.contains(where: { $0.identifier == "streak_rescue" }), "Streak rescue notification should be removed and not rescheduled.")
+    }
 }

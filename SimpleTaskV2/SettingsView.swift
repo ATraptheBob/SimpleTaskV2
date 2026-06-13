@@ -56,7 +56,6 @@ struct SettingsView: View {
                         }
                     }
                 }
-                // THE FIX: Added the background modifier to the Swipe section
                 .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
                 
                 Section(header: Text("Preferences").foregroundColor(.gray)) {

@@ -44,7 +44,7 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     func sendTestTaskNotification(taskTitle: String) {
         let content = UNMutableNotificationContent()
         content.title = "Task Completed! ✅"
-        content.body = "You just finished: \(taskTitle)"
+        content.body = "You just finished a task!"
         content.sound = .default
         
         // Increased the test delay slightly just to be safe
@@ -93,7 +93,7 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         
         let content = UNMutableNotificationContent()
         content.title = "Save Your Streak! 🔥"
-        content.body = "You haven't completed '\(habitName)' yet today. Don't lose your progress!"
+        content.body = "You have an incomplete habit today. Don't lose your progress!"
         content.sound = .default
         
         var dateComponents = DateComponents()

@@ -392,9 +392,11 @@ struct InboxView: View {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
             if isCompletedToday {
                 habit.completionDates.removeAll { calendar.isDate($0, equalTo: today, toGranularity: .day) }
+                habit.updateStreak()
                 hapticSound.triggerHapticSelection(); hapticSound.playSuccessSound()
             } else {
                 habit.completionDates.append(Date())
+                habit.updateStreak()
                 hapticSound.triggerHapticSuccess(); hapticSound.playCompleteSound()
             }
             try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines()

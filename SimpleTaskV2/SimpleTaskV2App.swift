@@ -56,6 +56,10 @@ struct SimpleTaskV2App: App {
         
         // 2. Calculate Unfinished Habits
         let allHabits = (try? context.fetch(FetchDescriptor<HabitItem>())) ?? []
+        for habit in allHabits {
+            habit.updateStreak()
+        }
+
         let dueHabits = allHabits.filter { habit in
             !habit.completionDates.contains { date in
                 switch habit.frequency ?? .daily {

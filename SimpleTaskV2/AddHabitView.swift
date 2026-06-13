@@ -89,7 +89,7 @@ struct AddHabitView: View {
                             newHabit.activeDays = Array(activeDays).sorted()
                             modelContext.insert(newHabit)
                         }
-                        try? modelContext.save()
+                        modelContext.safeSave()
                         dismiss()
                     }
                     .foregroundColor(.pink)

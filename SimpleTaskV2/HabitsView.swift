@@ -356,7 +356,7 @@ struct HabitSection: View {
                                             withAnimation {
                                                 if isActive { habit.activeDays.removeAll { $0 == dayInt } }
                                                 else { habit.activeDays.append(dayInt) }
-                                                try? modelContext.save()
+                                                modelContext.safeSave()
                                                 WidgetCenter.shared.reloadAllTimelines()
                                             }
                                         }
@@ -438,7 +438,7 @@ struct HabitSection: View {
                 hapticSound.triggerHapticSuccess()
                 hapticSound.playCompleteSound()
             }
-            try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines()
+            modelContext.safeSave(); WidgetCenter.shared.reloadAllTimelines()
         }
     }
 
@@ -447,7 +447,7 @@ struct HabitSection: View {
             case .edit: editAction(habit)
             case .delete:
                 modelContext.delete(habit)
-                try? modelContext.save()
+                modelContext.safeSave()
                 WidgetCenter.shared.reloadAllTimelines()
             case .toggle: toggleHabit(habit)
             case .date: break // FIX: Added the missing date case (does nothing for habits)

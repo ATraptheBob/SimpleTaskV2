@@ -106,3 +106,13 @@ final class PomodoroSession {
         self.date = date
     }
 }
+
+extension ModelContext {
+    func safeSave() {
+        do {
+            try self.save()
+        } catch {
+            print("Failed to save ModelContext: \(error.localizedDescription)")
+        }
+    }
+}

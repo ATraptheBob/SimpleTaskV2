@@ -291,7 +291,7 @@ struct InboxView: View {
                         .onTapGesture {
                             withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
                                 task.dueDate = tempDate
-                                try? modelContext.save()
+                                modelContext.safeSave()
                                 taskToReschedule = nil
                             }
                         }
@@ -311,7 +311,7 @@ struct InboxView: View {
                             Button(action: {
                                 withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
                                     task.dueDate = nil
-                                    try? modelContext.save()
+                                    modelContext.safeSave()
                                     taskToReschedule = nil
                                 }
                             }) {
@@ -327,7 +327,7 @@ struct InboxView: View {
                             Button(action: {
                                 withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
                                     task.dueDate = Date()
-                                    try? modelContext.save()
+                                    modelContext.safeSave()
                                     taskToReschedule = nil
                                 }
                             }) {
@@ -367,7 +367,7 @@ struct InboxView: View {
         var sortedTasks = activeTasks
         sortedTasks.move(fromOffsets: source, toOffset: destination)
         for (index, task) in sortedTasks.enumerated() { task.order = index }
-        try? modelContext.save()
+        modelContext.safeSave()
     }
     
     private func toggleTask(_ task: TaskItem) {
@@ -380,7 +380,7 @@ struct InboxView: View {
                 task.completionDate = nil
                 hapticSound.triggerHapticSelection(); hapticSound.playSuccessSound()
             }
-            try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines()
+            modelContext.safeSave(); WidgetCenter.shared.reloadAllTimelines()
         }
     }
     
@@ -397,7 +397,7 @@ struct InboxView: View {
                 habit.completionDates.append(Date())
                 hapticSound.triggerHapticSuccess(); hapticSound.playCompleteSound()
             }
-            try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines()
+            modelContext.safeSave(); WidgetCenter.shared.reloadAllTimelines()
         }
     }
     
@@ -414,7 +414,7 @@ struct InboxView: View {
         case .delete:
             withAnimation {
                 modelContext.delete(task)
-                try? modelContext.save()
+                modelContext.safeSave()
                 WidgetCenter.shared.reloadAllTimelines()
             }
         case .toggle:
@@ -431,7 +431,7 @@ struct InboxView: View {
     private func handleHabitSwipe(option: SwipeOption, habit: HabitItem) {
         switch option {
         case .edit: habitToEdit = habit
-        case .delete: withAnimation { modelContext.delete(habit); try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines() }
+        case .delete: withAnimation { modelContext.delete(habit); modelContext.safeSave(); WidgetCenter.shared.reloadAllTimelines() }
         case .toggle: toggleHabit(habit)
         case .date: break
         case .none: break
@@ -493,7 +493,7 @@ struct TaskRowView: View {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     if isExpanded {
                         isEditingNotes = false // Reset notes to view mode
-                        try? modelContext.save()
+                        modelContext.safeSave()
                         onToggleExpand()
                     } else {
                         onToggleExpand()
@@ -534,7 +534,7 @@ struct TaskRowView: View {
                             Button(action: {
                                 withAnimation {
                                     isEditingNotes.toggle()
-                                    if !isEditingNotes { try? modelContext.save() }
+                                    if !isEditingNotes { modelContext.safeSave() }
                                 }
                             }) {
                                 Text(isEditingNotes ? "Done" : (task.notes.isEmpty ? "Add" : "Edit"))
@@ -587,7 +587,7 @@ struct TaskRowView: View {
                                 Button("Remove Image", role: .destructive) {
                                     withAnimation {
                                         task.imageData = nil
-                                        try? modelContext.save()
+                                        modelContext.safeSave()
                                     }
                                 }
                             }
@@ -637,7 +637,7 @@ struct TaskRowView: View {
                                     DispatchQueue.main.async {
                                         withAnimation {
                                             task.imageData = data
-                                            try? modelContext.save()
+                                            modelContext.safeSave()
                                         }
                                     }
                                 }

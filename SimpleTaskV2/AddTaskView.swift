@@ -202,7 +202,7 @@ struct AddTaskView: View {
                             }
                         }
                         
-                        try? modelContext.save()
+                        modelContext.safeSave()
                         closeSheet()
                     }
                     .foregroundColor(.pink)

@@ -8,7 +8,7 @@ struct StatsView: View {
     @AppStorage("isDarkMode") private var isDarkMode = true
     
     var totalCompletedTasks: Int { allTasks.filter { $0.isCompleted }.count }
-    var bestStreak: Int { habits.map { $0.streak }.max() ?? 0 }
+    @State private var bestStreak: Int = 0
     
     var totalFocusHours: Double {
         let totalMinutes = sessions.reduce(0) { $0 + $1.durationMinutes }
@@ -111,6 +111,12 @@ struct StatsView: View {
             }
             .navigationTitle("Analytics")
             .toolbar(.hidden, for: .tabBar)
+            .onAppear {
+                bestStreak = habits.map { $0.streak }.max() ?? 0
+            }
+            .onChange(of: habits) { _ in
+                bestStreak = habits.map { $0.streak }.max() ?? 0
+            }
         }
     }
 }

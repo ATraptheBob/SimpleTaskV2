@@ -1,8 +1,13 @@
 import Foundation
 import UserNotifications
 
+protocol NotificationScheduling {
+    func scheduleMorningBriefing(activeTasks: Int, dueHabits: Int)
+    func scheduleStreakRescue(habitName: String?)
+}
+
 // 1. We add NSObject and UNUserNotificationCenterDelegate to give this class more authority
-class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
+class NotificationManager: NSObject, UNUserNotificationCenterDelegate, NotificationScheduling {
     
     static let shared = NotificationManager()
     

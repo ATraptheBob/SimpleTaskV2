@@ -564,14 +564,25 @@ struct TaskRowView: View {
                                     .onTapGesture { withAnimation { isEditingNotes = true } }
                             } else {
                                 // FIX: .init() allows standard URLs to be natively formatted as clickable links!
-                                Text(.init(task.notes))
-                                    .font(.callout)
-                                    .tint(.blue)
-                                    .foregroundColor(isDarkMode ? .white.opacity(0.9) : .black.opacity(0.9))
-                                    .padding(12)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(isDarkMode ? Color.black.opacity(0.2) : Color.white.opacity(0.5))
-                                    .cornerRadius(12)
+                                if let attributedNotes = try? AttributedString(markdown: task.notes) {
+                                    Text(attributedNotes)
+                                        .font(.callout)
+                                        .tint(.blue)
+                                        .foregroundColor(isDarkMode ? .white.opacity(0.9) : .black.opacity(0.9))
+                                        .padding(12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(isDarkMode ? Color.black.opacity(0.2) : Color.white.opacity(0.5))
+                                        .cornerRadius(12)
+                                } else {
+                                    Text(task.notes)
+                                        .font(.callout)
+                                        .tint(.blue)
+                                        .foregroundColor(isDarkMode ? .white.opacity(0.9) : .black.opacity(0.9))
+                                        .padding(12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(isDarkMode ? Color.black.opacity(0.2) : Color.white.opacity(0.5))
+                                        .cornerRadius(12)
+                                }
                             }
                         }
                     }

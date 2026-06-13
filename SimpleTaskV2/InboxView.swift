@@ -5,7 +5,13 @@ import WidgetKit
 
 struct InboxView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \TaskItem.dueDate, order: .forward) private var allTasks: [TaskItem]
+    // The query can only sort on Comparable properties (like String, Date, Int).
+    // isCompleted is a Bool, which is NOT Comparable in SwiftData, so we cannot sort by it directly in the query.
+    // However, we CAN sort by order, then dueDate, taking 2/3 of the work off the in-memory sort.
+    @Query(sort: [
+        SortDescriptor(\TaskItem.order, order: .forward),
+        SortDescriptor(\TaskItem.dueDate, order: .forward)
+    ]) private var allTasks: [TaskItem]
     @Query private var allHabits: [HabitItem]
     
     @State private var showingAddSheet = false
@@ -27,31 +33,32 @@ struct InboxView: View {
     @AppStorage("archiveSetting") private var archiveSetting: String = "Midnight"
 
     var activeTasks: [TaskItem] {
+        let now = Date()
+        let calendar = Calendar.current
+
         let filtered = allTasks.filter { task in
             if !task.isCompleted { return true }
-            if let completionDate = task.completionDate {
-                if archiveSetting == "24 Hours" {
-                    return Date().timeIntervalSince(completionDate) < 86400
-                } else if archiveSetting == "Midnight" {
-                    return Calendar.current.isDateInToday(completionDate)
-                } else {
-                    return false
-                }
+            guard let completionDate = task.completionDate else { return false }
+
+            if archiveSetting == "24 Hours" {
+                return now.timeIntervalSince(completionDate) < 86400
+            } else if archiveSetting == "Midnight" {
+                return calendar.isDateInToday(completionDate)
             }
             return false
         }
         
         return filtered.sorted { t1, t2 in
-            if t1.isCompleted == t2.isCompleted {
-                if t1.order == t2.order {
-                    if let d1 = t1.dueDate, let d2 = t2.dueDate { return d1 < d2 }
-                    else if t1.dueDate != nil { return true }
-                    else if t2.dueDate != nil { return false }
-                    return false
-                }
+            if t1.isCompleted != t2.isCompleted {
+                return !t1.isCompleted
+            }
+            if t1.order != t2.order {
                 return t1.order < t2.order
             }
-            return !t1.isCompleted
+            if let d1 = t1.dueDate, let d2 = t2.dueDate { return d1 < d2 }
+            if t1.dueDate != nil { return true }
+            if t2.dueDate != nil { return false }
+            return false
         }
     }
     

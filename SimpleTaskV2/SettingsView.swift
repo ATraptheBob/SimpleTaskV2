@@ -83,22 +83,6 @@ struct SettingsView: View {
                 }
                 .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
                 
-                Section(header: Text("Data & Privacy").foregroundColor(.gray)) {
-                    Button(action: { print("Exporting...") }) {
-                        HStack {
-                            Image(systemName: "square.and.arrow.up").foregroundColor(.blue)
-                            Text("Export Backup").foregroundColor(.blue)
-                        }
-                    }
-                    
-                    Button(action: { print("Deleting...") }) {
-                        HStack {
-                            Image(systemName: "trash").foregroundColor(.red)
-                            Text("Erase All Data").foregroundColor(.red)
-                        }
-                    }
-                }
-                .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
             }
             .scrollContentBackground(.hidden)
         }

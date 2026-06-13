@@ -452,7 +452,7 @@ struct TaskRowView: View {
     
     @Environment(\.modelContext) private var modelContext
     
-    // FIX: Using an Edit Mode toggle specifically for Notes
+    // FIX: Using an Edit Mode toggle specifically for Notes (implemented)
     @State private var isEditingNotes = false
     @State private var selectedPhotoItem: PhotosPickerItem?
     

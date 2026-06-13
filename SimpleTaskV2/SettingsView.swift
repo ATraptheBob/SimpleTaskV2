@@ -1,6 +1,9 @@
 import SwiftUI
+import SwiftData
 
 struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+
     // Focus Settings
     @AppStorage("pomodoroDuration") private var pomodoroDuration = 25
     @AppStorage("breakDuration") private var breakDuration = 5
@@ -16,6 +19,8 @@ struct SettingsView: View {
     @AppStorage("enableHaptics") private var enableHaptics = true
     @AppStorage("enableSounds") private var enableSounds = true
     
+    @State private var showEraseAlert = false
+
     var body: some View {
         ZStack {
             // Adapts main background color based on theme
@@ -91,11 +96,19 @@ struct SettingsView: View {
                         }
                     }
                     
-                    Button(action: { print("Deleting...") }) {
+                    Button(action: { showEraseAlert = true }) {
                         HStack {
                             Image(systemName: "trash").foregroundColor(.red)
                             Text("Erase All Data").foregroundColor(.red)
                         }
+                    }
+                    .alert("Erase All Data", isPresented: $showEraseAlert) {
+                        Button("Cancel", role: .cancel) { }
+                        Button("Erase", role: .destructive) {
+                            eraseAllData()
+                        }
+                    } message: {
+                        Text("Are you sure you want to permanently delete all your tasks, habits, and focus sessions? This action cannot be undone.")
                     }
                 }
                 .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
@@ -104,5 +117,28 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .toolbar(.hidden, for: .tabBar)
+    }
+
+    private func eraseAllData() {
+        do {
+            let tasks = try modelContext.fetch(FetchDescriptor<TaskItem>())
+            for task in tasks {
+                modelContext.delete(task)
+            }
+
+            let habits = try modelContext.fetch(FetchDescriptor<HabitItem>())
+            for habit in habits {
+                modelContext.delete(habit)
+            }
+
+            let sessions = try modelContext.fetch(FetchDescriptor<PomodoroSession>())
+            for session in sessions {
+                modelContext.delete(session)
+            }
+
+            try modelContext.save()
+        } catch {
+            print("Failed to erase all data: \(error)")
+        }
     }
 }

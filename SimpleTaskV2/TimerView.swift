@@ -154,7 +154,7 @@ struct TimerView: View {
             // POMODORO FINISHED -> START BREAK
             let session = PomodoroSession(durationMinutes: sessionLength, subject: selectedSubject)
             modelContext.insert(session)
-            try? modelContext.save()
+            modelContext.safeSave()
             
             withAnimation(.spring()) {
                 isBreakMode = true
@@ -218,7 +218,7 @@ struct TimerView: View {
         if elapsedMinutes > 0 && !isBreakMode {
             let session = PomodoroSession(durationMinutes: elapsedMinutes, subject: selectedSubject)
             modelContext.insert(session)
-            try? modelContext.save()
+            modelContext.safeSave()
         }
         
         isBreakMode = false

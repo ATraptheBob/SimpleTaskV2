@@ -1,8 +1,13 @@
 import Foundation
 import UserNotifications
 
+protocol NotificationScheduling {
+    func scheduleMorningBriefing(activeTasks: Int, dueHabits: Int)
+    func scheduleStreakRescue(habitName: String?)
+}
+
 // 1. We add NSObject and UNUserNotificationCenterDelegate to give this class more authority
-class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
+class NotificationManager: NSObject, UNUserNotificationCenterDelegate, NotificationScheduling {
     
     static let shared = NotificationManager()
     
@@ -39,19 +44,6 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     
     func cancelTimerNotification() {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["focus_timer_complete"])
-    }
-    
-    func sendTestTaskNotification(taskTitle: String) {
-        let content = UNMutableNotificationContent()
-        content.title = "Task Completed! ✅"
-        content.body = "You just finished: \(taskTitle)"
-        content.sound = .default
-        
-        // Increased the test delay slightly just to be safe
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5.0, repeats: false)
-        let request = UNNotificationRequest(identifier: "task_test_\(UUID().uuidString)", content: content, trigger: trigger)
-        
-        UNUserNotificationCenter.current().add(request)
     }
     
     // ---------------------------------------------------------

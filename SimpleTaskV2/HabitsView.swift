@@ -431,10 +431,12 @@ struct HabitSection: View {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
             if isCompleted(habit) {
                 habit.completionDates.removeAll { calendar.isDate($0, equalTo: today, toGranularity: .day) }
+                habit.updateStreak()
                 hapticSound.triggerHapticSelection()
                 hapticSound.playSuccessSound()
             } else {
                 habit.completionDates.append(Date())
+                habit.updateStreak()
                 hapticSound.triggerHapticSuccess()
                 hapticSound.playCompleteSound()
             }
@@ -450,7 +452,7 @@ struct HabitSection: View {
                 try? modelContext.save()
                 WidgetCenter.shared.reloadAllTimelines()
             case .toggle: toggleHabit(habit)
-            case .date: break // FIX: Added the missing date case (does nothing for habits)
+            case .date: break
             case .none: break
             }
         }

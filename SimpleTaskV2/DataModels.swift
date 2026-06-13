@@ -55,14 +55,22 @@ final class HabitItem {
     
     var activeDays: [Int] = []
     
-    var streak: Int {
+    var streak: Int = 0
+
+    func updateStreak() {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         let pastCompletions = completionDates.map { calendar.startOfDay(for: $0) }.sorted(by: >)
-        guard let latestCompletion = pastCompletions.first else { return 0 }
+        guard let latestCompletion = pastCompletions.first else {
+            streak = 0
+            return
+        }
         
         let daysSinceLast = calendar.dateComponents([.day], from: latestCompletion, to: today).day ?? 0
-        if daysSinceLast > 1 { return 0 }
+        if daysSinceLast > 1 {
+            streak = 0
+            return
+        }
         
         var currentStreak = 0
         var expectedDate = latestCompletion
@@ -72,7 +80,7 @@ final class HabitItem {
                 expectedDate = calendar.date(byAdding: .day, value: -1, to: expectedDate)!
             } else { break }
         }
-        return currentStreak
+        streak = currentStreak
     }
     
     init(title: String, frequency: RepeatInterval = .daily) {

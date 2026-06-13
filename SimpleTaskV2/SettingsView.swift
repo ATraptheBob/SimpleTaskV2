@@ -84,14 +84,14 @@ struct SettingsView: View {
                 .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
                 
                 Section(header: Text("Data & Privacy").foregroundColor(.gray)) {
-                    Button(action: { print("Exporting...") }) {
+                    Button(action: exportBackup) {
                         HStack {
                             Image(systemName: "square.and.arrow.up").foregroundColor(.blue)
                             Text("Export Backup").foregroundColor(.blue)
                         }
                     }
                     
-                    Button(action: { print("Deleting...") }) {
+                    Button(action: eraseAllData) {
                         HStack {
                             Image(systemName: "trash").foregroundColor(.red)
                             Text("Erase All Data").foregroundColor(.red)
@@ -104,5 +104,15 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .toolbar(.hidden, for: .tabBar)
+    }
+
+    private func exportBackup() {
+        // TODO: Implement export logic
+        print("Exporting...")
+    }
+
+    private func eraseAllData() {
+        // TODO: Implement data deletion logic
+        print("Deleting...")
     }
 }

@@ -85,7 +85,9 @@ struct Provider: TimelineProvider {
         Task { @MainActor in
             do {
                 let schema = Schema([TaskItem.self, SubtaskItem.self, HabitItem.self, PomodoroSession.self])
-                let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2")!
+                guard let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2") else {
+                    throw URLError(.badURL)
+                }
                 let databaseURL = sharedFolderURL.appendingPathComponent("SimpleTaskDatabase.sqlite")
                 let config = ModelConfiguration(url: databaseURL)
                 let container = try ModelContainer(for: schema, configurations: config)

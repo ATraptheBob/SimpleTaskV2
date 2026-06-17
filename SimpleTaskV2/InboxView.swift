@@ -68,7 +68,7 @@ struct InboxView: View {
         let weekday = calendar.component(.weekday, from: today)
         
         return allHabits.filter { habit in
-            let isScheduledToday = habit.activeDays.contains(weekday) || (habit.activeDays.isEmpty && habit.frequency != .none)
+            let isScheduledToday = habit.activeDays.contains(weekday) || (habit.activeDays.isEmpty && habit.frequency != RepeatInterval.none)
             let isCompletedToday = habit.completionDates.contains { calendar.isDateInToday($0) }
             return isScheduledToday && !isCompletedToday
         }

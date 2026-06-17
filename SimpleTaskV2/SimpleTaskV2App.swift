@@ -55,7 +55,8 @@ struct SimpleTaskV2App: App {
             habit.updateStreak()
         }
 
-        let dueHabits = allHabits.filter { habit in
+        let calendar = Calendar.current
+        _ = allHabits.filter { habit in
             let freq = habit.frequency ?? .daily
             if freq == .none { return true }
             guard let latestCompletion = habit.completionDates.max() else { return true }

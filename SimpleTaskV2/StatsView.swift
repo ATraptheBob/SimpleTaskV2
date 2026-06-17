@@ -114,7 +114,7 @@ struct StatsView: View {
             .onAppear {
                 bestStreak = habits.map { $0.streak }.max() ?? 0
             }
-            .onChange(of: habits) { _ in
+            .onChange(of: habits) { _, _ in
                 bestStreak = habits.map { $0.streak }.max() ?? 0
             }
         }

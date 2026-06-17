@@ -1,6 +1,9 @@
 import SwiftUI
+import SwiftData
 
 struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+
     // Focus Settings
     @AppStorage("pomodoroDuration") private var pomodoroDuration = 25
     @AppStorage("breakDuration") private var breakDuration = 5
@@ -120,7 +123,16 @@ struct SettingsView: View {
     }
 
     private func eraseAllData() {
-        // TODO: Implement data deletion logic
-        print("Deleting...")
+        do {
+            try modelContext.delete(model: TaskItem.self)
+            try modelContext.delete(model: HabitItem.self)
+            try modelContext.delete(model: PomodoroSession.self)
+            try modelContext.delete(model: SubtaskItem.self)
+
+            try modelContext.save()
+            print("Successfully erased all data.")
+        } catch {
+            print("Failed to erase data: \(error.localizedDescription)")
+        }
     }
 }

@@ -104,10 +104,16 @@ struct HabitDashboardPanel: View {
         
         let cache = habitCompletionsCache
 
+        // DYNAMIC ACCURACY: Precompute active habits by weekday to avoid O(Days * Habits) redundant iterations
+        var activeHabitsByWeekday: [Int: [HabitItem]] = [:]
+        for weekday in 1...7 {
+            activeHabitsByWeekday[weekday] = habits.filter { $0.activeDays.contains(weekday) }
+        }
+
         // DYNAMIC ACCURACY: Only grade percentages based on habits scheduled for that specific day
         let dailyPercentages = monthDates.map { date -> Double in
             let weekday = calendar.component(.weekday, from: date)
-            let activeHabitsForDay = habits.filter { $0.activeDays.contains(weekday) }
+            let activeHabitsForDay = activeHabitsByWeekday[weekday] ?? []
             
             if activeHabitsForDay.isEmpty { return 1.0 } // 100% if nothing was scheduled!
             

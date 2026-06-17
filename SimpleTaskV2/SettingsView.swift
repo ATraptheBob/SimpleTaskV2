@@ -16,6 +16,9 @@ struct SettingsView: View {
     @AppStorage("enableHaptics") private var enableHaptics = true
     @AppStorage("enableSounds") private var enableSounds = true
     
+    // Alerts
+    @State private var showingEraseConfirmation = false
+
     var body: some View {
         ZStack {
             // Adapts main background color based on theme
@@ -91,11 +94,17 @@ struct SettingsView: View {
                         }
                     }
                     
-                    Button(action: eraseAllData) {
+                    Button(action: { showingEraseConfirmation = true }) {
                         HStack {
                             Image(systemName: "trash").foregroundColor(.red)
                             Text("Erase All Data").foregroundColor(.red)
                         }
+                    }
+                    .alert("Erase All Data", isPresented: $showingEraseConfirmation) {
+                        Button("Cancel", role: .cancel) { }
+                        Button("Erase", role: .destructive, action: eraseAllData)
+                    } message: {
+                        Text("Are you sure you want to permanently erase all data? This action cannot be undone.")
                     }
                 }
                 .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)

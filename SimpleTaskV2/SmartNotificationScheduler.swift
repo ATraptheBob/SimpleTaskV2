@@ -9,13 +9,14 @@ struct SmartNotificationScheduler {
 
         // 2. Calculate Unfinished Habits
         let dueHabits = allHabits.filter { habit in
-            !habit.completionDates.contains { date in
-                switch habit.frequency ?? .daily {
-                case .daily: return calendar.isDateInToday(date)
-                case .weekly: return calendar.isDate(date, equalTo: Date(), toGranularity: .weekOfYear)
-                case .monthly: return calendar.isDate(date, equalTo: Date(), toGranularity: .month)
-                case .none: return false
-                }
+            let freq = habit.frequency ?? .daily
+            if freq == .none { return true }
+            guard let latestCompletion = habit.completionDates.max() else { return true }
+            switch freq {
+            case .daily: return !calendar.isDateInToday(latestCompletion)
+            case .weekly: return !calendar.isDate(latestCompletion, equalTo: Date(), toGranularity: .weekOfYear)
+            case .monthly: return !calendar.isDate(latestCompletion, equalTo: Date(), toGranularity: .month)
+            case .none: return true
             }
         }
 

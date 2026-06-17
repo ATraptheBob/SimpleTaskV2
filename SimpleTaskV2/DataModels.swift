@@ -90,13 +90,14 @@ final class HabitItem {
     
     var isDone: Bool {
         let cal = Calendar.current
-        return completionDates.contains { date in
-            switch frequency ?? .daily {
-            case .daily: return cal.isDateInToday(date)
-            case .weekly: return cal.isDate(date, equalTo: Date(), toGranularity: .weekOfYear)
-            case .monthly: return cal.isDate(date, equalTo: Date(), toGranularity: .month)
-            case .none: return false
-            }
+        let freq = frequency ?? .daily
+        if freq == .none { return false }
+        guard let latestCompletion = completionDates.max() else { return false }
+        switch freq {
+        case .daily: return cal.isDateInToday(latestCompletion)
+        case .weekly: return cal.isDate(latestCompletion, equalTo: Date(), toGranularity: .weekOfYear)
+        case .monthly: return cal.isDate(latestCompletion, equalTo: Date(), toGranularity: .month)
+        case .none: return false
         }
     }
 }

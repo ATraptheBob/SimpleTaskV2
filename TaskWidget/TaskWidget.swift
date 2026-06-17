@@ -204,8 +204,7 @@ struct TaskWidgetEntryView : View {
                     }
                     Spacer()
                 }
-                // FIX: Shrunk dramatically from 85 down to 55
-                .frame(width: 55, alignment: .leading)
+                .frame(width: 85, alignment: .leading)
                 
                 // THE VERTICAL SEPARATOR
                 Divider()

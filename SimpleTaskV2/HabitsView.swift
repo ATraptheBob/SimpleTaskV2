@@ -218,9 +218,11 @@ struct HabitHeatmapView: View {
         let today = Date()
         guard let currentMonthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: today)) else { return [] }
         
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM yyyy"
+
         for i in (0..<12).reversed() {
             guard let monthStart = calendar.date(byAdding: .month, value: -i, to: currentMonthStart) else { continue }
-            let formatter = DateFormatter(); formatter.dateFormat = "MMM yyyy"
             let name = formatter.string(from: monthStart).uppercased()
             
             guard let range = calendar.range(of: .day, in: .month, for: monthStart),

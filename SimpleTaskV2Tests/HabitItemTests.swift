@@ -70,4 +70,54 @@ final class HabitItemTests: XCTestCase {
         habit.completionDates = [lastMonth, Date()]
         XCTAssertTrue(habit.isDone, "Monthly habit completed this month should be done")
     }
+
+    // MARK: - updateStreak() Tests
+
+    func testUpdateStreak_EmptyCompletions() {
+        let habit = HabitItem(title: "Habit")
+        habit.completionDates = []
+        habit.updateStreak()
+        XCTAssertEqual(habit.streak, 0, "Streak should be 0 when there are no completion dates")
+    }
+
+    func testUpdateStreak_GapMoreThanOneDay() {
+        let habit = HabitItem(title: "Habit")
+        let twoDaysAgo = Calendar.current.date(byAdding: .day, value: -2, to: Date())!
+        habit.completionDates = [twoDaysAgo]
+        habit.updateStreak()
+        XCTAssertEqual(habit.streak, 0, "Streak should be 0 when latest completion is more than 1 day ago")
+    }
+
+    func testUpdateStreak_ContinuousFromToday() {
+        let habit = HabitItem(title: "Habit")
+        let today = Date()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: today)!
+        let twoDaysAgo = Calendar.current.date(byAdding: .day, value: -2, to: today)!
+
+        habit.completionDates = [today, yesterday, twoDaysAgo]
+        habit.updateStreak()
+        XCTAssertEqual(habit.streak, 3, "Streak should count all continuous days starting from today")
+    }
+
+    func testUpdateStreak_ContinuousFromYesterday() {
+        let habit = HabitItem(title: "Habit")
+        let today = Date()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: today)!
+        let twoDaysAgo = Calendar.current.date(byAdding: .day, value: -2, to: today)!
+
+        habit.completionDates = [yesterday, twoDaysAgo]
+        habit.updateStreak()
+        XCTAssertEqual(habit.streak, 2, "Streak should count continuous days even if the latest is yesterday")
+    }
+
+    func testUpdateStreak_WithGapInMiddle() {
+        let habit = HabitItem(title: "Habit")
+        let today = Date()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: today)!
+        let threeDaysAgo = Calendar.current.date(byAdding: .day, value: -3, to: today)!
+
+        habit.completionDates = [today, yesterday, threeDaysAgo]
+        habit.updateStreak()
+        XCTAssertEqual(habit.streak, 2, "Streak should break when there is a gap greater than 1 day between completions")
+    }
 }

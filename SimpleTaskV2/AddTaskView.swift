@@ -46,7 +46,7 @@ struct AddTaskView: View {
                         
                         // FIX: Toggle switch for adding a due date
                         Toggle("Set Due Date", isOn: $hasDueDate.animation())
-                            .foregroundColor(.blue)
+                            .tint(.blue)
                         
                         if hasDueDate {
                             DatePicker("Date", selection: $dueDate, displayedComponents: .date)

@@ -94,4 +94,21 @@ final class SimpleTaskV2Tests: XCTestCase {
         XCTAssertEqual(mockNotificationManager.streakRescueCallCount, 1)
         XCTAssertEqual(mockNotificationManager.scheduledStreakRescueHabitName, "Habit 2")
     }
+
+    func testSchedule_withDueHabitsAndZeroStreak() throws {
+        let habit1 = HabitItem(title: "Habit 1")
+        // 0 streak, no completions
+
+        let habit2 = HabitItem(title: "Habit 2")
+        // 0 streak, no completions
+
+        scheduler.schedule(allTasks: [], allHabits: [habit1, habit2], notificationManager: mockNotificationManager)
+
+        XCTAssertEqual(mockNotificationManager.morningBriefingCallCount, 1)
+        XCTAssertEqual(mockNotificationManager.scheduledMorningBriefingActiveTasks, 0)
+        XCTAssertEqual(mockNotificationManager.scheduledMorningBriefingDueHabits, 2)
+
+        XCTAssertEqual(mockNotificationManager.streakRescueCallCount, 1)
+        XCTAssertNil(mockNotificationManager.scheduledStreakRescueHabitName)
+    }
 }

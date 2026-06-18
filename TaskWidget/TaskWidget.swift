@@ -49,9 +49,11 @@ struct Provider: TimelineProvider {
                 let container = try ModelContainer(for: schema, configurations: config)
                 
                 // Fetch Tasks
-                // TODO: Fetch tasks from EventKitManager
-                let activeTasks: [WidgetTaskInfo] = []
-                let topTasks: [WidgetTaskInfo] = []
+                let ekManager = EventKitManager.shared
+                let allTasks = (try? await ekManager.fetchTasks()) ?? []
+                let activeAppTasks = allTasks.filter { !$0.isCompleted }
+                let activeTasks = activeAppTasks.map { WidgetTaskInfo(id: $0.id, title: $0.title, isCompleted: $0.isCompleted) }
+                let topTasks = Array(activeTasks.prefix(3))
                 
                 // Fetch Habits
                 let descriptorHabits = FetchDescriptor<HabitItem>()

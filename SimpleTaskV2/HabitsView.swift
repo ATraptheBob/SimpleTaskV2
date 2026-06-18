@@ -43,6 +43,7 @@ struct HabitsView: View {
                                 .font(.system(size: 24, weight: .medium))
                                 .foregroundColor(.pink)
                         }
+                        .accessibilityLabel("Add Habit")
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 10)

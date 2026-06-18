@@ -252,7 +252,6 @@ struct TaskWidget: Widget {
         }
         .configurationDisplayName("Tasks & Habits")
         .description("Track your status or check off upcoming tasks.")
-        // FIX: Now explicitly supports both sizes so the Medium one appears in the menu
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
     }
 }

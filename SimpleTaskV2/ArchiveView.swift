@@ -2,14 +2,14 @@ import SwiftUI
 import SwiftData
 
 struct ArchiveView: View {
-    @Query(sort: \TaskItem.completionDate, order: .reverse) private var allTasks: [TaskItem]
+    @StateObject private var eventKitManager = EventKitManager.shared
     @AppStorage("isDarkMode") private var isDarkMode = true
     
     @AppStorage("archiveSetting") private var archiveSetting: String = "Midnight"
     
-    var archivedTasks: [TaskItem] {
-        allTasks.filter { task in
-            guard task.isCompleted, let completionDate = task.completionDate else { return false }
+    var archivedTasks: [AppTask] {
+        eventKitManager.completedReminders.filter { task in
+            guard let completionDate = task.completionDate else { return false }
             if archiveSetting == "24 Hours" {
                 return Date().timeIntervalSince(completionDate) >= 86400
             } else if archiveSetting == "Midnight" {
@@ -17,7 +17,7 @@ struct ArchiveView: View {
             } else { // Immediately
                 return true
             }
-        }
+        }.sorted(by: { ($0.completionDate ?? Date.distantPast) > ($1.completionDate ?? Date.distantPast) })
     }
     
     var body: some View {

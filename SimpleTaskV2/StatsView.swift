@@ -1,27 +1,52 @@
 import SwiftUI
 import SwiftData
 
+enum TimeFilter: String, CaseIterable {
+    case daily = "Daily"
+    case monthly = "Monthly"
+    case allTime = "All Time"
+}
+
 struct StatsView: View {
-    @Query private var allTasks: [TaskItem]
+    @StateObject private var eventKitManager = EventKitManager.shared
     @Query private var habits: [HabitItem]
     @Query private var sessions: [PomodoroSession]
     @AppStorage("isDarkMode") private var isDarkMode = true
     
-    var totalCompletedTasks: Int { allTasks.filter { $0.isCompleted }.count }
+    @State private var selectedTimeFilter: TimeFilter = .allTime
     @State private var bestStreak: Int = 0
     
+    private func isDate(_ date: Date?, in filter: TimeFilter) -> Bool {
+        guard let date = date else { return false }
+        let calendar = Calendar.current
+        switch filter {
+        case .daily:
+            return calendar.isDateInToday(date)
+        case .monthly:
+            return calendar.isDate(date, equalTo: Date(), toGranularity: .month)
+        case .allTime:
+            return true
+        }
+    }
+    
+    var filteredSessions: [PomodoroSession] {
+        sessions.filter { isDate($0.date, in: selectedTimeFilter) }
+    }
+    
+    var totalCompletedTasks: Int {
+        eventKitManager.completedReminders.filter { isDate($0.completionDate, in: selectedTimeFilter) }.count
+    }
+    
     var totalFocusHours: Double {
-        let totalMinutes = sessions.reduce(0) { $0 + $1.durationMinutes }
+        let totalMinutes = filteredSessions.reduce(0) { $0 + $1.durationMinutes }
         return Double(totalMinutes) / 60.0
     }
     
-    // NEW: Groups sessions by subject and calculates hours per subject
     var subjectBreakdown: [(name: String, hours: Double)] {
         var breakdown: [String: Int] = [:]
-        for session in sessions {
+        for session in filteredSessions {
             breakdown[session.subject, default: 0] += session.durationMinutes
         }
-        // Converts to hours and sorts from highest to lowest
         return breakdown.map { (name: $0.key, hours: Double($0.value) / 60.0) }
             .sorted { $0.hours > $1.hours }
     }
@@ -33,6 +58,14 @@ struct StatsView: View {
                 
                 ScrollView {
                     VStack(spacing: 20) {
+                        
+                        Picker("Time Range", selection: $selectedTimeFilter) {
+                            ForEach(TimeFilter.allCases, id: \.self) { filter in
+                                Text(filter.rawValue).tag(filter)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal)
                         
                         // Hero Metric: Focus Time
                         VStack {

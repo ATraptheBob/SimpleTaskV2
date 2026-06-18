@@ -1,28 +1,34 @@
 import SwiftUI
+import EventKit
 import SwiftData
 import PhotosUI
 import WidgetKit
+internal import Combine
 
 struct InboxView: View {
     @Environment(\.modelContext) private var modelContext
-    // The query can only sort on Comparable properties (like String, Date, Int).
-    // isCompleted is a Bool, which is NOT Comparable in SwiftData, so we cannot sort by it directly in the query.
-    // However, we CAN sort by order, then dueDate, taking 2/3 of the work off the in-memory sort.
-    @Query(sort: [
-        SortDescriptor(\TaskItem.order, order: .forward),
-        SortDescriptor(\TaskItem.dueDate, order: .forward)
-    ]) private var allTasks: [TaskItem]
+    @StateObject private var eventKitManager = EventKitManager.shared
     @Query private var allHabits: [HabitItem]
     
     @State private var showingAddSheet = false
     @State private var isMenuOpen = false
     
-    @State private var expandedTaskId: UUID? = nil
+    // Morning Briefing State
+    @State private var showingMorningApproval = false
+    @State private var morningBriefing: MorningBriefing? = nil
+    @State private var isFetchingBriefing = false
+    
+    @State private var expandedTaskId: String? = nil
     @State private var habitToEdit: HabitItem?
     
     // Calendar Popup States
-    @State private var taskToReschedule: TaskItem?
+    @State private var taskToReschedule: AppTask?
     @State private var tempDate: Date = Date()
+    
+    // List Reorder
+    @StateObject private var calendarOrderManager = CalendarOrderManager()
+    @State private var isReorderingLists = false
+    @State private var reorderableCalendarIds: [String] = []
     
     private let hapticSound = HapticAndSoundManager.shared
     
@@ -32,11 +38,11 @@ struct InboxView: View {
     @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
     @AppStorage("archiveSetting") private var archiveSetting: String = "Midnight"
 
-    var activeTasks: [TaskItem] {
+    var activeTasks: [AppTask] {
         let now = Date()
         let calendar = Calendar.current
 
-        let filtered = allTasks.filter { task in
+        let filtered = eventKitManager.reminders.filter { task in
             if !task.isCompleted { return true }
             guard let completionDate = task.completionDate else { return false }
 
@@ -52,9 +58,7 @@ struct InboxView: View {
             if t1.isCompleted != t2.isCompleted {
                 return !t1.isCompleted
             }
-            if t1.order != t2.order {
-                return t1.order < t2.order
-            }
+            // EventKit tasks are returned mostly ordered, but we can rely on due date
             if let d1 = t1.dueDate, let d2 = t2.dueDate { return d1 < d2 }
             if t1.dueDate != nil { return true }
             if t2.dueDate != nil { return false }
@@ -88,6 +92,29 @@ struct InboxView: View {
                             .font(.system(size: 34, weight: .bold, design: .rounded))
                             .foregroundColor(isDarkMode ? .white : .black)
                         Spacer()
+                        
+                        Button(action: {
+                            let calendars = eventKitManager.getCalendars()
+                            let sorted = calendarOrderManager.sort(calendars)
+                            reorderableCalendarIds = sorted.map { $0.calendarIdentifier }
+                            isReorderingLists = true
+                        }) {
+                            Image(systemName: "list.bullet.indent")
+                                .font(.title2)
+                                .foregroundColor(.gray)
+                        }
+                        .padding(.trailing, 8)
+                        
+                        if isFetchingBriefing {
+                            ProgressView()
+                                .tint(.pink)
+                        } else {
+                            Button(action: fetchMorningBriefing) {
+                                Image(systemName: "sparkles")
+                                    .font(.title)
+                                    .foregroundColor(.pink)
+                            }
+                        }
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 10)
@@ -152,44 +179,64 @@ struct InboxView: View {
                             }
                             
                             if !activeTasks.isEmpty {
-                                Section(header: Text("Tasks").foregroundColor(.pink).bold().padding(.leading, 8).padding(.top, 10)) {
-                                    ForEach(activeTasks) { task in
-                                        VStack(spacing: 0) {
-                                            TaskRowView(
-                                                task: task,
-                                                isExpanded: expandedTaskId == task.id,
-                                                isDarkMode: isDarkMode,
-                                                toggleTask: { toggleTask(task) },
-                                                onToggleExpand: {
-                                                    if expandedTaskId == task.id {
-                                                        expandedTaskId = nil
-                                                    } else {
-                                                        expandedTaskId = task.id
+                                let groupedTasks = Dictionary(grouping: activeTasks, by: { $0.reminder.calendar })
+                                let allCalendars = groupedTasks.keys.compactMap { $0 }
+                                let sortedCalendars = calendarOrderManager.sort(allCalendars).filter { !calendarOrderManager.isHidden($0.calendarIdentifier) }
+                                
+                                ForEach(sortedCalendars, id: \.calendarIdentifier) { calendar in
+                                    Section(header: 
+                                        Text(calendar.title)
+                                            .foregroundColor(Color(cgColor: calendar.cgColor))
+                                            .bold()
+                                            .padding(.leading, 8)
+                                            .padding(.top, 10)
+                                    ) {
+                                        ForEach(groupedTasks[calendar] ?? []) { task in
+                                            VStack(spacing: 0) {
+                                                let binding = Binding(
+                                                    get: { task },
+                                                    set: { updatedTask in
+                                                        if let index = eventKitManager.reminders.firstIndex(where: { $0.id == updatedTask.id }) {
+                                                            eventKitManager.reminders[index] = updatedTask
+                                                        }
                                                     }
-                                                },
-                                                onOpenCalendar: {
-                                                    tempDate = task.dueDate ?? Date()
-                                                    withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                                                        taskToReschedule = task
+                                                )
+                                                
+                                                TaskRowView(
+                                                    task: binding,
+                                                    isExpanded: expandedTaskId == task.id,
+                                                    isDarkMode: isDarkMode,
+                                                    toggleTask: { toggleTask(task) },
+                                                    onToggleExpand: {
+                                                        if expandedTaskId == task.id {
+                                                            expandedTaskId = nil
+                                                        } else {
+                                                            expandedTaskId = task.id
+                                                        }
+                                                    },
+                                                    onOpenCalendar: {
+                                                        tempDate = task.dueDate ?? Date()
+                                                        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                                            taskToReschedule = task
+                                                        }
                                                     }
-                                                }
-                                            )
-                                            .customSwipeActions(
-                                                left: leftSwipeAction,
-                                                right: rightSwipeAction,
-                                                onLeft: { handleTaskSwipe(option: leftSwipeAction, task: task) },
-                                                onRight: { handleTaskSwipe(option: rightSwipeAction, task: task) }
-                                            )
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 4)
-                                            
-                                            Divider().padding(.leading, 50)
+                                                )
+                                                .customSwipeActions(
+                                                    left: leftSwipeAction,
+                                                    right: rightSwipeAction,
+                                                    onLeft: { handleTaskSwipe(option: leftSwipeAction, task: task) },
+                                                    onRight: { handleTaskSwipe(option: rightSwipeAction, task: task) }
+                                                )
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 4)
+                                                
+                                                Divider().padding(.leading, 50)
+                                            }
+                                            .listRowInsets(EdgeInsets())
+                                            .listRowBackground(Color.clear)
+                                            .listRowSeparator(.hidden)
                                         }
-                                        .listRowInsets(EdgeInsets())
-                                        .listRowBackground(Color.clear)
-                                        .listRowSeparator(.hidden)
                                     }
-                                    .onMove(perform: moveTask)
                                 }
                             }
                             
@@ -200,6 +247,9 @@ struct InboxView: View {
                         }
                         .listStyle(.plain)
                         .scrollContentBackground(.hidden)
+                        .refreshable {
+                            await eventKitManager.loadData()
+                        }
                     }
                 }
                 
@@ -297,9 +347,11 @@ struct InboxView: View {
                         .ignoresSafeArea()
                         .onTapGesture {
                             withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                                task.dueDate = tempDate
-                                try? modelContext.save()
-                                taskToReschedule = nil
+                                if var t = taskToReschedule {
+                                    t.dueDate = tempDate
+                                    try? eventKitManager.updateTask(t)
+                                    taskToReschedule = nil
+                                }
                             }
                         }
                         .zIndex(5)
@@ -316,10 +368,12 @@ struct InboxView: View {
                         
                         HStack(spacing: 15) {
                             Button(action: {
-                                withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                                    task.dueDate = nil
-                                    try? modelContext.save()
-                                    taskToReschedule = nil
+                                if var t = taskToReschedule {
+                                    withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                        t.dueDate = nil
+                                        try? eventKitManager.updateTask(t)
+                                        taskToReschedule = nil
+                                    }
                                 }
                             }) {
                                 Text("Clear Date")
@@ -332,13 +386,15 @@ struct InboxView: View {
                             }
                             
                             Button(action: {
-                                withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                                    task.dueDate = Date()
-                                    try? modelContext.save()
-                                    taskToReschedule = nil
+                                if var t = taskToReschedule {
+                                    withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                        t.dueDate = tempDate
+                                        try? eventKitManager.updateTask(t)
+                                        taskToReschedule = nil
+                                    }
                                 }
                             }) {
-                                Text("Today")
+                                Text("Reschedule")
                                     .fontWeight(.bold)
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity)
@@ -367,27 +423,75 @@ struct InboxView: View {
             .sheet(item: $habitToEdit) { habit in
                 AddHabitView(habitToEdit: habit).presentationDetents([.large])
             }
+            .fullScreenCover(isPresented: $showingMorningApproval) {
+                if let briefing = morningBriefing {
+                    MorningApprovalView(briefing: briefing, isPresented: $showingMorningApproval)
+                }
+            }
+            .sheet(isPresented: $isReorderingLists) {
+                ReorderListsSheet(
+                    calendarIds: $reorderableCalendarIds,
+                    calendars: eventKitManager.getCalendars(),
+                    isDarkMode: isDarkMode,
+                    onSave: { newOrder in
+                        calendarOrderManager.updateOrder(from: newOrder)
+                    },
+                    isHidden: { id in
+                        calendarOrderManager.isHidden(id)
+                    },
+                    toggleHidden: { id in
+                        calendarOrderManager.toggleHidden(id)
+                    }
+                )
+                .presentationDetents([.medium])
+            }
+        }
+    }
+    
+    private func fetchMorningBriefing() {
+        Task {
+            isFetchingBriefing = true
+            do {
+                var fetchedEmails: [String] = []
+                if GoogleWorkspaceManager.shared.isSignedIn {
+                    let emailJson = try await GoogleWorkspaceManager.shared.fetchRecentImportantEmails()
+                    fetchedEmails = [emailJson] // Or parse if you implement real Gmail API
+                }
+                
+                let briefing = try await GeminiManager.shared.generateMorningBriefing(
+                    events: eventKitManager.events,
+                    reminders: eventKitManager.reminders.map { $0.reminder },
+                    emails: fetchedEmails
+                )
+                DispatchQueue.main.async {
+                    self.morningBriefing = briefing
+                    self.showingMorningApproval = true
+                    self.isFetchingBriefing = false
+                }
+            } catch {
+                print("Failed to fetch briefing: \(error)")
+                DispatchQueue.main.async { self.isFetchingBriefing = false }
+            }
         }
     }
     
     private func moveTask(from source: IndexSet, to destination: Int) {
-        var sortedTasks = activeTasks
-        sortedTasks.move(fromOffsets: source, toOffset: destination)
-        for (index, task) in sortedTasks.enumerated() { task.order = index }
-        try? modelContext.save()
+        // Disabled for EventKit
     }
     
-    private func toggleTask(_ task: TaskItem) {
+    private func toggleTask(_ task: AppTask) {
+        var mutableTask = task
         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-            task.isCompleted.toggle()
-            if task.isCompleted {
-                task.completionDate = Date()
+            mutableTask.isCompleted.toggle()
+            if mutableTask.isCompleted {
+                mutableTask.completionDate = Date()
                 hapticSound.triggerHapticSuccess(); hapticSound.playCompleteSound()
             } else {
-                task.completionDate = nil
+                mutableTask.completionDate = nil
                 hapticSound.triggerHapticSelection(); hapticSound.playSuccessSound()
             }
-            try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines()
+            try? eventKitManager.updateTask(mutableTask)
+            WidgetCenter.shared.reloadAllTimelines()
         }
     }
     
@@ -410,7 +514,7 @@ struct InboxView: View {
         }
     }
     
-    private func handleTaskSwipe(option: SwipeOption, task: TaskItem) {
+    private func handleTaskSwipe(option: SwipeOption, task: AppTask) {
         switch option {
         case .edit:
             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
@@ -422,8 +526,7 @@ struct InboxView: View {
             }
         case .delete:
             withAnimation {
-                modelContext.delete(task)
-                try? modelContext.save()
+                try? eventKitManager.deleteTask(task)
                 WidgetCenter.shared.reloadAllTimelines()
             }
         case .toggle:
@@ -447,4 +550,59 @@ struct InboxView: View {
         }
     }
 
+}
+
+class CalendarOrderManager: ObservableObject {
+    @AppStorage("calendarOrder") var calendarOrderString: String = ""
+    @AppStorage("hiddenCalendars") var hiddenCalendarsString: String = ""
+    
+    var order: [String] {
+        get {
+            calendarOrderString.split(separator: ",").map(String.init)
+        }
+        set {
+            calendarOrderString = newValue.joined(separator: ",")
+        }
+    }
+    
+    var hiddenIds: Set<String> {
+        get {
+            Set(hiddenCalendarsString.split(separator: ",").map(String.init))
+        }
+        set {
+            hiddenCalendarsString = newValue.joined(separator: ",")
+        }
+    }
+    
+    func sort(_ calendars: [EKCalendar]) -> [EKCalendar] {
+        let currentOrder = order
+        return calendars.sorted { cal1, cal2 in
+            let idx1 = currentOrder.firstIndex(of: cal1.calendarIdentifier) ?? Int.max
+            let idx2 = currentOrder.firstIndex(of: cal2.calendarIdentifier) ?? Int.max
+            if idx1 == idx2 {
+                return cal1.title < cal2.title
+            }
+            return idx1 < idx2
+        }
+    }
+    
+    func updateOrder(from ids: [String]) {
+        order = ids
+        objectWillChange.send()
+    }
+    
+    func toggleHidden(_ id: String) {
+        var currentHidden = hiddenIds
+        if currentHidden.contains(id) {
+            currentHidden.remove(id)
+        } else {
+            currentHidden.insert(id)
+        }
+        hiddenIds = currentHidden
+        objectWillChange.send()
+    }
+    
+    func isHidden(_ id: String) -> Bool {
+        hiddenIds.contains(id)
+    }
 }

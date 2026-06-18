@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import GoogleSignIn
 
 @main
 struct SimpleTaskV2App: App {
@@ -11,7 +12,7 @@ struct SimpleTaskV2App: App {
     
     init() {
         do {
-            let schema = Schema([TaskItem.self, SubtaskItem.self, HabitItem.self, PomodoroSession.self])
+            let schema = Schema([HabitItem.self, PomodoroSession.self])
             guard let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2") else {
                 fatalError("Could not find App Group folder.")
             }
@@ -33,14 +34,33 @@ struct SimpleTaskV2App: App {
             .tint(.pink)
             // 2. CHANGE THIS LINE: Dynamically flip the system text colors
             .preferredColorScheme(isDarkMode ? .dark : .light)
+            .onOpenURL { url in
+                GIDSignIn.sharedInstance.handle(url)
+            }
             .onAppear {
+                GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: "645108702205-fdgev8hbmmtn42jjgr1fmi6v873u1ff6.apps.googleusercontent.com")
                 NotificationManager.shared.requestAuthorization()
+                Task {
+                    let granted = await EventKitManager.shared.requestAccess()
+                    if granted {
+                        await EventKitManager.shared.loadData()
+                        EventKitManager.shared.startSyncTimer()
+                    }
+                }
             }
         }
         .modelContainer(container)
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .background {
+            switch newPhase {
+            case .active:
+                // Re-sync every time the app comes to the foreground
+                Task {
+                    await EventKitManager.shared.loadData()
+                }
+            case .background:
                 scheduleSmartNotifications()
+            default:
+                break
             }
         }
     }
@@ -48,8 +68,8 @@ struct SimpleTaskV2App: App {
     // NEW: The Brains of the Operation
     private func scheduleSmartNotifications() {
         let context = ModelContext(container)
-        
-        let allTasks = (try? context.fetch(FetchDescriptor<TaskItem>())) ?? []
+        // Task logic temporarily disabled pending EventKit integration
+        let allTasks: [TaskItem] = [] 
         let allHabits = (try? context.fetch(FetchDescriptor<HabitItem>())) ?? []
         for habit in allHabits {
             habit.updateStreak()

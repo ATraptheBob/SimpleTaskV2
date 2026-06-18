@@ -3,14 +3,12 @@ import SwiftData
 import PhotosUI
 
 struct TaskRowView: View {
-    @Bindable var task: TaskItem
+    @Binding var task: AppTask
     var isExpanded: Bool
     var isDarkMode: Bool
     var toggleTask: () -> Void
     var onToggleExpand: () -> Void
     var onOpenCalendar: () -> Void
-
-    @Environment(\.modelContext) private var modelContext
 
     // FIX: Using an Edit Mode toggle specifically for Notes
     @State private var isEditingNotes = false
@@ -53,7 +51,7 @@ struct TaskRowView: View {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     if isExpanded {
                         isEditingNotes = false // Reset notes to view mode
-                        try? modelContext.save()
+                        try? EventKitManager.shared.updateTask(task)
                         onToggleExpand()
                     } else {
                         onToggleExpand()
@@ -65,27 +63,6 @@ struct TaskRowView: View {
             if isExpanded {
                 VStack(alignment: .leading, spacing: 16) {
 
-                    // 1. SUBTASKS (Top Priority)
-                    if !task.subtasks.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(task.subtasks) { subtask in
-                                SubtaskRowView(
-                                    subtask: subtask,
-                                    isDarkMode: isDarkMode,
-                                    onDelete: {
-                                        withAnimation {
-                                            if let idx = task.subtasks.firstIndex(of: subtask) {
-                                                task.subtasks.remove(at: idx)
-                                                modelContext.delete(subtask)
-                                            }
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                        .padding(.leading, 32)
-                    }
-
                     // 2. NOTES (Always Visible, with Edit Button)
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
@@ -94,7 +71,7 @@ struct TaskRowView: View {
                             Button(action: {
                                 withAnimation {
                                     isEditingNotes.toggle()
-                                    if !isEditingNotes { try? modelContext.save() }
+                                    if !isEditingNotes { try? EventKitManager.shared.updateTask(task) }
                                 }
                             }) {
                                 Text(isEditingNotes ? "Done" : (task.notes.isEmpty ? "Add" : "Edit"))
@@ -136,23 +113,6 @@ struct TaskRowView: View {
                         }
                     }
 
-                    // 3. IMAGE
-                    if let data = task.imageData, let uiImage = UIImage(data: data) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 180)
-                            .cornerRadius(12)
-                            .contextMenu {
-                                Button("Remove Image", role: .destructive) {
-                                    withAnimation {
-                                        task.imageData = nil
-                                        try? modelContext.save()
-                                    }
-                                }
-                            }
-                    }
-
                     // 4. MICROBUTTONS ROW (Isolated Buttons)
                     HStack(spacing: 16) {
                         Spacer()
@@ -167,42 +127,6 @@ struct TaskRowView: View {
                                 .accessibilityLabel("Reschedule Task")
                         }
                         .buttonStyle(.plain) // FIX: Prevents mass-activation
-
-                        Button(action: {
-                            withAnimation { task.subtasks.append(SubtaskItem(title: "")) }
-                        }) {
-                            Image(systemName: "list.bullet")
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(.blue)
-                                .frame(width: 32, height: 32)
-                                .background(isDarkMode ? Color(white: 0.25) : Color(white: 0.85))
-                                .clipShape(Circle())
-                                .accessibilityLabel("Add Subtask")
-                        }
-                        .buttonStyle(.plain) // FIX: Prevents mass-activation
-
-                        PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                            Image(systemName: task.imageData == nil ? "photo" : "photo.badge.checkmark")
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(.green)
-                                .frame(width: 32, height: 32)
-                                .background(isDarkMode ? Color(white: 0.25) : Color(white: 0.85))
-                                .clipShape(Circle())
-                                .accessibilityLabel(task.imageData == nil ? "Attach Image" : "Change Image")
-                        }
-                        .buttonStyle(.plain) // FIX: Prevents mass-activation
-                        .onChange(of: selectedPhotoItem) { _, newItem in
-                            Task {
-                                if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                                    DispatchQueue.main.async {
-                                        withAnimation {
-                                            task.imageData = data
-                                            try? modelContext.save()
-                                        }
-                                    }
-                                }
-                            }
-                        }
                     }
                     .padding(.top, 4)
                 }

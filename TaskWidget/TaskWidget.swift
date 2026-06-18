@@ -17,31 +17,7 @@ struct ToggleTaskIntent: AppIntent {
     init(taskID: String) { self.taskID = taskID }
     
     func perform() async throws -> some IntentResult {
-        // 1. Connect to the shared App Group database
-        let schema = Schema([TaskItem.self, SubtaskItem.self, HabitItem.self, PomodoroSession.self])
-        guard let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2") else {
-            return .result()
-        }
-        let databaseURL = sharedFolderURL.appendingPathComponent("SimpleTaskDatabase.sqlite")
-        let config = ModelConfiguration(url: databaseURL)
-        
-        do {
-            let container = try ModelContainer(for: schema, configurations: config)
-            let context = ModelContext(container)
-            
-            // 2. Fetch all tasks and find the one that matches the tapped ID
-            let descriptor = FetchDescriptor<TaskItem>()
-            let allTasks = try context.fetch(descriptor)
-            
-            if let task = allTasks.first(where: { $0.id.uuidString == taskID }) {
-                // 3. Toggle it and save!
-                task.isCompleted.toggle()
-                task.completionDate = task.isCompleted ? Date() : nil
-                try context.save()
-            }
-        } catch {
-            print("Widget Intent failed to save: \(error)")
-        }
+        // TODO: Toggle task using EventKitManager
         
         return .result()
     }
@@ -84,7 +60,7 @@ struct Provider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
         Task { @MainActor in
             do {
-                let schema = Schema([TaskItem.self, SubtaskItem.self, HabitItem.self, PomodoroSession.self])
+                let schema = Schema([HabitItem.self, PomodoroSession.self])
                 guard let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2") else {
                     throw URLError(.badURL)
                 }
@@ -93,14 +69,9 @@ struct Provider: TimelineProvider {
                 let container = try ModelContainer(for: schema, configurations: config)
                 
                 // Fetch Tasks
-                let descriptorTasks = FetchDescriptor<TaskItem>()
-                let allTasks = (try? container.mainContext.fetch(descriptorTasks)) ?? []
-                let activeTasks = allTasks.filter { !$0.isCompleted }
-                
-                // Get the top 3 upcoming tasks to show in the medium widget list
-                let topTasks = activeTasks.prefix(3).map {
-                    WidgetTaskInfo(id: $0.id.uuidString, title: $0.title, isCompleted: $0.isCompleted)
-                }
+                // TODO: Fetch tasks from EventKitManager
+                let activeTasks: [WidgetTaskInfo] = []
+                let topTasks: [WidgetTaskInfo] = []
                 
                 // Fetch Habits
                 let descriptorHabits = FetchDescriptor<HabitItem>()

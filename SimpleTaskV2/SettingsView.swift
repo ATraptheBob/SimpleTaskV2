@@ -3,6 +3,7 @@ import SwiftData
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
+    @StateObject private var googleWorkspace = GoogleWorkspaceManager.shared
 
     // Focus Settings
     @AppStorage("pomodoroDuration") private var pomodoroDuration = 25
@@ -18,9 +19,12 @@ struct SettingsView: View {
     @AppStorage("isDarkMode") private var isDarkMode = true
     @AppStorage("enableHaptics") private var enableHaptics = true
     @AppStorage("enableSounds") private var enableSounds = true
-    
+    @AppStorage("googleCloudProjectId") private var googleCloudProjectId: String = ""
     // Alerts
     @State private var showingEraseConfirmation = false
+    
+    // Sync
+    @AppStorage("syncIntervalMinutes") private var syncIntervalMinutes: Int = 30
 
     var body: some View {
         ZStack {
@@ -88,25 +92,71 @@ struct SettingsView: View {
                 }
                 .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
                 
-                Section(header: Text("Data & Privacy").foregroundColor(.gray)) {
-                    Button(action: exportBackup) {
+                Section(header: Text("Sync").foregroundColor(.gray)) {
+                    Picker(selection: $syncIntervalMinutes) {
+                        Text("15 minutes").tag(15)
+                        Text("30 minutes").tag(30)
+                        Text("1 hour").tag(60)
+                        Text("2 hours").tag(120)
+                        Text("Manual only").tag(0)
+                    } label: {
                         HStack {
-                            Image(systemName: "square.and.arrow.up").foregroundColor(.blue)
-                            Text("Export Backup").foregroundColor(.blue)
+                            Image(systemName: "arrow.triangle.2.circlepath").foregroundColor(.blue)
+                            Text("Auto-Sync Interval")
+                        }
+                    }
+                    .onChange(of: syncIntervalMinutes) { _, newValue in
+                        if newValue > 0 {
+                            EventKitManager.shared.syncIntervalMinutes = newValue
+                            EventKitManager.shared.restartSyncTimer()
+                        } else {
+                            EventKitManager.shared.syncIntervalMinutes = 0
+                            // Stop timer by setting a very large value — or just invalidate
+                            EventKitManager.shared.restartSyncTimer()
                         }
                     }
                     
-                    Button(action: { showingEraseConfirmation = true }) {
+                    Button(action: {
+                        Task {
+                            await EventKitManager.shared.loadData()
+                        }
+                    }) {
                         HStack {
-                            Image(systemName: "trash").foregroundColor(.red)
-                            Text("Erase All Data").foregroundColor(.red)
+                            Image(systemName: "arrow.clockwise").foregroundColor(.green)
+                            Text("Sync Now")
                         }
                     }
-                    .alert("Erase All Data", isPresented: $showingEraseConfirmation) {
-                        Button("Cancel", role: .cancel) { }
-                        Button("Erase", role: .destructive, action: eraseAllData)
-                    } message: {
-                        Text("Are you sure you want to permanently erase all data? This action cannot be undone.")
+                }
+                .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
+                
+                Section(header: Text("Integrations").foregroundColor(.gray)) {
+                    HStack {
+                        Image(systemName: "envelope.fill").foregroundColor(.blue)
+                        Text("Google Workspace")
+                        Spacer()
+                        if googleWorkspace.isSignedIn {
+                            Text("Connected")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                            Button("Sign Out") {
+                                googleWorkspace.signOut()
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                        } else {
+                            Button("Sign In") {
+                                Task {
+                                    try? await googleWorkspace.signIn()
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
+                    
+                    HStack {
+                        Image(systemName: "cloud.fill").foregroundColor(.pink)
+                        TextField("Google Cloud Project ID", text: $googleCloudProjectId)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
                     }
                 }
                 .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
@@ -115,24 +165,5 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .toolbar(.hidden, for: .tabBar)
-    }
-
-    private func exportBackup() {
-        // TODO: Implement export logic
-        print("Exporting...")
-    }
-
-    private func eraseAllData() {
-        do {
-            try modelContext.delete(model: TaskItem.self)
-            try modelContext.delete(model: HabitItem.self)
-            try modelContext.delete(model: PomodoroSession.self)
-            try modelContext.delete(model: SubtaskItem.self)
-
-            try modelContext.save()
-            print("Successfully erased all data.")
-        } catch {
-            print("Failed to erase data: \(error.localizedDescription)")
-        }
     }
 }

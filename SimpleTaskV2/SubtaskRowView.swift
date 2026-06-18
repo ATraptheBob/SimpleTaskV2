@@ -26,6 +26,7 @@ struct SubtaskRowView: View {
                     .foregroundColor(.gray)
                     .padding(.horizontal, 4)
                     .onTapGesture { onDelete() }
+                    .accessibilityLabel("Delete subtask")
             }
         }
         .padding(.vertical, 4)

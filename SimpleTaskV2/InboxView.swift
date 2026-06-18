@@ -143,6 +143,7 @@ struct InboxView: View {
                             Button(action: { searchText = "" }) {
                                 Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
                             }
+                            .accessibilityLabel("Clear search")
                         }
                     }
                     .padding(10)

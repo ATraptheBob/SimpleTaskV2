@@ -33,6 +33,7 @@ struct MorningApprovalView: View {
                             .font(.title2)
                             .foregroundColor(.gray)
                     }
+                    .accessibilityLabel("Close")
                 }
                 .padding()
                 

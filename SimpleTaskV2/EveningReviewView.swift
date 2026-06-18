@@ -26,6 +26,7 @@ struct EveningReviewView: View {
                             .font(.title2)
                             .foregroundColor(.gray)
                     }
+                    .accessibilityLabel("Close")
                 }
                 .padding()
                 

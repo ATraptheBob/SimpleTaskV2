@@ -115,6 +115,7 @@ struct TimerView: View {
                                 .clipShape(Circle())
                                 .shadow(color: activeColor.opacity(0.4), radius: 10, y: 5)
                         }
+                        .accessibilityLabel(timerRunning ? "Pause Timer" : "Play Timer")
                         
                         Button(action: isBreakMode ? resetTimer : endSessionEarly) {
                             Image(systemName: isBreakMode ? "forward.end.fill" : "stop.fill")
@@ -124,6 +125,7 @@ struct TimerView: View {
                                 .background(Color.gray.opacity(0.2))
                                 .clipShape(Circle())
                         }
+                        .accessibilityLabel(isBreakMode ? "Reset Timer" : "End Session Early")
                         .disabled(timeRemaining == (isBreakMode ? breakDuration * 60 : sessionLength * 60))
                         .opacity(timeRemaining == (isBreakMode ? breakDuration * 60 : sessionLength * 60) ? 0.5 : 1.0)
                     }
@@ -170,6 +172,7 @@ struct TimerView: View {
                                         .foregroundColor(activeColor)
                                         .background(Circle().fill(Color.white.opacity(0.1)))
                                 }
+                                .accessibilityLabel(timerRunning ? "Pause Timer" : "Play Timer")
                             }
                             .padding(.top, 10)
                         }

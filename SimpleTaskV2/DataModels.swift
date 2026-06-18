@@ -110,8 +110,22 @@ struct AppTask: Identifiable {
     }
     
     var aiImportance: String? {
-        get { metadataDict?["importance"] }
-        set { setMetadata(key: "importance", value: newValue) }
+        get {
+            switch reminder.priority {
+            case 1...4: return "high"
+            case 5: return "medium"
+            case 6...9: return "low"
+            default: return nil
+            }
+        }
+        set {
+            switch newValue?.lowercased() {
+            case "high": reminder.priority = Int(EKReminderPriority.high.rawValue)
+            case "medium": reminder.priority = Int(EKReminderPriority.medium.rawValue)
+            case "low": reminder.priority = Int(EKReminderPriority.low.rawValue)
+            default: reminder.priority = Int(EKReminderPriority.none.rawValue)
+            }
+        }
     }
     
     var isUrgent: Bool {

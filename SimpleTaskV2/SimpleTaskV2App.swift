@@ -20,6 +20,10 @@ struct SimpleTaskV2App: App {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("isDarkMode", store: UserDefaults(suiteName: "group.com.wilsonlee.SimpleTaskV2")) private var isDarkMode = true
     
+    /// Controls splash → main content transition.
+    /// False = show splash, True = show TabView.
+    @State private var isReady = false
+    
     init() {
         do {
             let schema = Schema([HabitItem.self, PomodoroSession.self, QueuedTaskAction.self])
@@ -42,21 +46,20 @@ struct SimpleTaskV2App: App {
                 LazyView(TimerView()).tabItem { Label("Focus", systemImage: "timer") }
             }
             .tint(.pink)
-            // 2. CHANGE THIS LINE: Dynamically flip the system text colors
             .preferredColorScheme(isDarkMode ? .dark : .light)
             .onOpenURL { url in
                 GIDSignIn.sharedInstance.handle(url)
             }
             .task {
-                // Configure Google Sign-In synchronously (cheap, just sets a config object)
+                // Configure Google Sign-In (cheap — just sets a config object)
                 GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: "645108702205-fdgev8hbmmtn42jjgr1fmi6v873u1ff6.apps.googleusercontent.com")
                 
                 // Yield to let the first frame render before doing heavy I/O
                 await Task.yield()
                 
-                // Fire all independent startup tasks concurrently
+                // Run all heavy startup I/O concurrently
                 async let restoreGoogle: () = GoogleWorkspaceManager.shared.restoreSignIn()
-                async let requestNotifications: () = { NotificationManager.shared.requestAuthorization() }()
+                async let requestNotifications: () = MainActor.run { NotificationManager.shared.requestAuthorization() }
                 async let loadEventKit: () = performEventKitSetup()
                 
                 _ = await (restoreGoogle, requestNotifications, loadEventKit)

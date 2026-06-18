@@ -4,26 +4,6 @@ import SwiftData
 import AppIntents
 
 // ---------------------------------------------------------
-// 1. THE ACTION INTENT (Handles the interactive button tap)
-// ---------------------------------------------------------
-struct ToggleTaskIntent: AppIntent {
-    static var title: LocalizedStringResource = "Toggle Task"
-    
-    // We need the ID to know exactly which task to check off
-    @Parameter(title: "Task ID")
-    var taskID: String
-    
-    init() {}
-    init(taskID: String) { self.taskID = taskID }
-    
-    func perform() async throws -> some IntentResult {
-        // TODO: Toggle task using EventKitManager
-        
-        return .result()
-    }
-}
-
-// ---------------------------------------------------------
 // 2. THE DATA MODELS
 // ---------------------------------------------------------
 // We use a simplified struct to pass data safely into the widget timeline
@@ -60,7 +40,7 @@ struct Provider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
         Task { @MainActor in
             do {
-                let schema = Schema([HabitItem.self, PomodoroSession.self])
+                let schema = Schema([HabitItem.self, PomodoroSession.self, QueuedTaskAction.self])
                 guard let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2") else {
                     throw URLError(.badURL)
                 }
@@ -114,7 +94,33 @@ struct TaskWidgetEntryView : View {
     @Environment(\.widgetFamily) var family
 
     var body: some View {
-        if family == .systemSmall {
+        switch family {
+        case .accessoryRectangular:
+            // LOCK SCREEN WIDGET
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: entry.pendingTasksCount > 0 ? "checklist" : "checkmark.circle.fill")
+                    Text("Tasks: \(entry.pendingTasksCount)")
+                        .font(.headline)
+                }
+                if let topTask = entry.topTasks.first {
+                    HStack {
+                        Button(intent: ToggleTaskIntent(taskID: topTask.id, isCompleted: topTask.isCompleted)) {
+                            Image(systemName: topTask.isCompleted ? "checkmark.circle.fill" : "circle")
+                        }
+                        .buttonStyle(.plain)
+                        Text(topTask.title)
+                            .lineLimit(1)
+                            .strikethrough(topTask.isCompleted)
+                    }
+                } else {
+                    Text("All caught up!")
+                        .foregroundColor(.gray)
+                }
+            }
+            .containerBackground(for: .widget) {}
+            
+        case .systemSmall:
             // THE ORIGINAL SMALL WIDGET
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -139,7 +145,7 @@ struct TaskWidgetEntryView : View {
             .padding()
             .containerBackground(Color(white: 0.05), for: .widget)
             
-        } else {
+        case .systemMedium:
             // THE ASYMMETRIC SPLIT-SCREEN MEDIUM WIDGET
             HStack(alignment: .top, spacing: 14) {
                 
@@ -192,7 +198,7 @@ struct TaskWidgetEntryView : View {
                             VStack(spacing: 0) {
                                 HStack(alignment: .center, spacing: 12) {
                                     
-                                    Button(intent: ToggleTaskIntent(taskID: task.id)) {
+                                    Button(intent: ToggleTaskIntent(taskID: task.id, isCompleted: task.isCompleted)) {
                                         if task.isCompleted {
                                             Image(systemName: "checkmark.circle.fill")
                                                 .font(.system(size: 18))
@@ -229,6 +235,8 @@ struct TaskWidgetEntryView : View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .containerBackground(Color(white: 0.10), for: .widget)
+        default:
+            Text("Unsupported")
         }
     }
 }
@@ -245,6 +253,128 @@ struct TaskWidget: Widget {
         .configurationDisplayName("Tasks & Habits")
         .description("Track your status or check off upcoming tasks.")
         // FIX: Now explicitly supports both sizes so the Medium one appears in the menu
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
+    }
+}
+
+// ---------------------------------------------------------
+// 6. WIDGET INTENTS
+// ---------------------------------------------------------
+
+struct ToggleTaskIntent: AppIntent {
+    static var title: LocalizedStringResource = "Toggle Task"
+    
+    @Parameter(title: "Task ID")
+    var taskID: String
+    
+    @Parameter(title: "Is Currently Completed")
+    var isCompleted: Bool
+    
+    init() {}
+    init(taskID: String, isCompleted: Bool) {
+        self.taskID = taskID
+        self.isCompleted = isCompleted
+    }
+    
+    func perform() async throws -> some IntentResult {
+        do {
+            let schema = Schema([HabitItem.self, PomodoroSession.self, QueuedTaskAction.self])
+            guard let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2") else {
+                return .result()
+            }
+            let databaseURL = sharedFolderURL.appendingPathComponent("SimpleTaskDatabase.sqlite")
+            let config = ModelConfiguration(url: databaseURL)
+            let container = try ModelContainer(for: schema, configurations: config)
+            
+            let context = ModelContext(container)
+            let action = QueuedTaskAction(taskID: taskID, actionType: isCompleted ? "uncomplete" : "complete")
+            context.insert(action)
+            try context.save()
+        } catch {
+            print("Failed to queue task action: \(error)")
+        }
+        return .result()
+    }
+}
+
+struct ToggleHabitIntent: AppIntent {
+    static var title: LocalizedStringResource = "Toggle Habit"
+    
+    @Parameter(title: "Habit ID")
+    var habitIDString: String
+    
+    init() {}
+    init(habitID: String) { self.habitIDString = habitID }
+    
+    func perform() async throws -> some IntentResult {
+        do {
+            let schema = Schema([HabitItem.self, PomodoroSession.self, QueuedTaskAction.self])
+            guard let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2") else {
+                return .result()
+            }
+            let databaseURL = sharedFolderURL.appendingPathComponent("SimpleTaskDatabase.sqlite")
+            let config = ModelConfiguration(url: databaseURL)
+            let container = try ModelContainer(for: schema, configurations: config)
+            
+            let context = ModelContext(container)
+            let descriptor = FetchDescriptor<HabitItem>()
+            let habits = try context.fetch(descriptor)
+            
+            if let uuid = UUID(uuidString: habitIDString), let habit = habits.first(where: { $0.id == uuid }) {
+                let cal = Calendar.current
+                let freq = habit.frequency ?? .daily
+                var isDone = false
+                
+                if let latest = habit.completionDates.max() {
+                    switch freq {
+                    case .daily: isDone = cal.isDateInToday(latest)
+                    case .weekly: isDone = cal.isDate(latest, equalTo: Date(), toGranularity: .weekOfYear)
+                    case .monthly: isDone = cal.isDate(latest, equalTo: Date(), toGranularity: .month)
+                    case .none: isDone = false
+                    }
+                }
+                
+                if isDone {
+                    if let latest = habit.completionDates.max() {
+                        habit.completionDates.removeAll(where: { $0 == latest })
+                    }
+                } else {
+                    habit.completionDates.append(Date())
+                }
+                habit.updateStreak()
+                try context.save()
+            }
+        } catch {
+            print("Failed to toggle habit: \(error)")
+        }
+        return .result()
+    }
+}
+
+struct ToggleTimerIntent: AppIntent {
+    static var title: LocalizedStringResource = "Toggle Timer"
+    
+    init() {}
+    
+    func perform() async throws -> some IntentResult {
+        guard let defaults = UserDefaults(suiteName: "group.com.wilsonlee.SimpleTaskV2") else {
+            return .result()
+        }
+        
+        let targetEndTime = defaults.double(forKey: "targetEndTime")
+        
+        if targetEndTime > 0 {
+            let remaining = targetEndTime - Date().timeIntervalSince1970
+            if remaining > 0 {
+                defaults.set(Int(remaining), forKey: "storedTimeRemaining")
+            }
+            defaults.set(0.0, forKey: "targetEndTime")
+        } else {
+            let stored = defaults.integer(forKey: "storedTimeRemaining")
+            let timeToUse = stored > 0 ? stored : (defaults.integer(forKey: "pomodoroDuration") * 60)
+            let newTarget = Date().timeIntervalSince1970 + Double(timeToUse)
+            defaults.set(newTarget, forKey: "targetEndTime")
+        }
+        return .result()
     }
 }

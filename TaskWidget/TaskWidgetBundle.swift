@@ -13,5 +13,6 @@ struct TaskWidgetBundle: WidgetBundle {
     var body: some Widget {
         TaskWidget()
         TaskWidgetControl()
+        PomodoroLiveActivity()
     }
 }

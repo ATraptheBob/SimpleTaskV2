@@ -20,8 +20,11 @@ struct SmartNotificationScheduler {
             }
         }
 
-        // 3. Schedule the Briefing
+        // 3. Schedule the Briefings
+        let completedTasks = allTasks.filter { $0.isCompleted && calendar.isDateInToday($0.completionDate ?? Date()) }.count
+        
         notificationManager.scheduleMorningBriefing(activeTasks: activeTasks, dueHabits: dueHabits.count)
+        notificationManager.scheduleEveningBriefing(completedTasks: completedTasks, pendingTasks: activeTasks)
 
         // 4. Find the highest streak in danger, and schedule the rescue
         if let habitToRescue = dueHabits.sorted(by: { $0.streak > $1.streak }).first, habitToRescue.streak > 0 {

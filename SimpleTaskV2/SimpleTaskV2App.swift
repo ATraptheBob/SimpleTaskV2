@@ -2,17 +2,27 @@ import SwiftUI
 import SwiftData
 import GoogleSignIn
 
+/// Defers view initialization until the view actually appears on screen.
+/// Prevents SwiftUI TabView from eagerly constructing all tab bodies at launch.
+struct LazyView<Content: View>: View {
+    let build: () -> Content
+    init(_ build: @autoclosure @escaping () -> Content) {
+        self.build = build
+    }
+    var body: Content { build() }
+}
+
 @main
 struct SimpleTaskV2App: App {
     let container: ModelContainer
     
     // NEW: Tracks if the app is open, inactive, or in the background
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage("isDarkMode") private var isDarkMode = true
+    @AppStorage("isDarkMode", store: UserDefaults(suiteName: "group.com.wilsonlee.SimpleTaskV2")) private var isDarkMode = true
     
     init() {
         do {
-            let schema = Schema([HabitItem.self, PomodoroSession.self])
+            let schema = Schema([HabitItem.self, PomodoroSession.self, QueuedTaskAction.self])
             guard let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2") else {
                 fatalError("Could not find App Group folder.")
             }
@@ -28,8 +38,8 @@ struct SimpleTaskV2App: App {
         WindowGroup {
             TabView {
                 InboxView().tabItem { Label("Inbox", systemImage: "tray.fill") }
-                HabitsView().tabItem { Label("Habits", systemImage: "flame.fill") }
-                TimerView().tabItem { Label("Focus", systemImage: "timer") }
+                LazyView(HabitsView()).tabItem { Label("Habits", systemImage: "flame.fill") }
+                LazyView(TimerView()).tabItem { Label("Focus", systemImage: "timer") }
             }
             .tint(.pink)
             // 2. CHANGE THIS LINE: Dynamically flip the system text colors
@@ -37,16 +47,19 @@ struct SimpleTaskV2App: App {
             .onOpenURL { url in
                 GIDSignIn.sharedInstance.handle(url)
             }
-            .onAppear {
+            .task {
+                // Configure Google Sign-In synchronously (cheap, just sets a config object)
                 GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: "645108702205-fdgev8hbmmtn42jjgr1fmi6v873u1ff6.apps.googleusercontent.com")
-                NotificationManager.shared.requestAuthorization()
-                Task {
-                    let granted = await EventKitManager.shared.requestAccess()
-                    if granted {
-                        await EventKitManager.shared.loadData()
-                        EventKitManager.shared.startSyncTimer()
-                    }
-                }
+                
+                // Yield to let the first frame render before doing heavy I/O
+                await Task.yield()
+                
+                // Fire all independent startup tasks concurrently
+                async let restoreGoogle: () = GoogleWorkspaceManager.shared.restoreSignIn()
+                async let requestNotifications: () = { NotificationManager.shared.requestAuthorization() }()
+                async let loadEventKit: () = performEventKitSetup()
+                
+                _ = await (restoreGoogle, requestNotifications, loadEventKit)
             }
         }
         .modelContainer(container)
@@ -56,6 +69,7 @@ struct SimpleTaskV2App: App {
                 // Re-sync every time the app comes to the foreground
                 Task {
                     await EventKitManager.shared.loadData()
+                    processQueuedActions()
                 }
             case .background:
                 scheduleSmartNotifications()
@@ -65,7 +79,39 @@ struct SimpleTaskV2App: App {
         }
     }
     
+    /// Requests EventKit access and loads data + starts sync timer if granted.
+    private func performEventKitSetup() async {
+        let granted = await EventKitManager.shared.requestAccess()
+        if granted {
+            await EventKitManager.shared.loadData()
+            EventKitManager.shared.startSyncTimer()
+        }
+    }
+    
     // NEW: The Brains of the Operation
+    
+    private func processQueuedActions() {
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<QueuedTaskAction>()
+        guard let queuedActions = try? context.fetch(descriptor), !queuedActions.isEmpty else { return }
+        
+        for action in queuedActions {
+            // Find the task in EventKit
+            if let taskIndex = EventKitManager.shared.reminders.firstIndex(where: { $0.id == action.taskID }) {
+                var task = EventKitManager.shared.reminders[taskIndex]
+                task.isCompleted = (action.actionType == "complete")
+                if task.isCompleted {
+                    task.completionDate = action.timestamp
+                } else {
+                    task.completionDate = nil
+                }
+                try? EventKitManager.shared.updateTask(task)
+            }
+            context.delete(action)
+        }
+        try? context.save()
+    }
+    
     private func scheduleSmartNotifications() {
         let context = ModelContext(container)
         // Task logic temporarily disabled pending EventKit integration

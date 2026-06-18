@@ -19,7 +19,8 @@ struct SettingsView: View {
     @AppStorage("isDarkMode") private var isDarkMode = true
     @AppStorage("enableHaptics") private var enableHaptics = true
     @AppStorage("enableSounds") private var enableSounds = true
-    @AppStorage("googleCloudProjectId") private var googleCloudProjectId: String = ""
+    @AppStorage("useDynamicBackground") private var useDynamicBackground = true
+    @AppStorage("geminiApiKey") private var geminiApiKey: String = ""
     // Alerts
     @State private var showingEraseConfirmation = false
     
@@ -28,8 +29,7 @@ struct SettingsView: View {
 
     var body: some View {
         ZStack {
-            // Adapts main background color based on theme
-            (isDarkMode ? Color(white: 0.05) : Color(white: 0.95)).ignoresSafeArea()
+            DynamicBackgroundView()
             
             Form {
                 Section(header: Text("Focus Engine").foregroundColor(.gray)) {
@@ -87,6 +87,13 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "speaker.wave.2.fill").foregroundColor(.green)
                             Text("Sound Effects")
+                        }
+                    }
+                    
+                    Toggle(isOn: $useDynamicBackground) {
+                        HStack {
+                            Image(systemName: "sparkles").foregroundColor(.pink)
+                            Text("Dynamic Background")
                         }
                     }
                 }
@@ -154,8 +161,8 @@ struct SettingsView: View {
                     }
                     
                     HStack {
-                        Image(systemName: "cloud.fill").foregroundColor(.pink)
-                        TextField("Google Cloud Project ID", text: $googleCloudProjectId)
+                        Image(systemName: "sparkles").foregroundColor(.pink)
+                        SecureField("Gemini API Key", text: $geminiApiKey)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                     }
                 }

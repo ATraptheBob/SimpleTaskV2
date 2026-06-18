@@ -21,18 +21,63 @@ struct HamburgerButton: View {
 
 struct MenuLink: View {
     let title: String
+    let subtitle: String?
     let icon: String
+    let badgeCount: Int?
+    
     @AppStorage("isDarkMode") private var isDarkMode = true
+    
+    init(title: String, icon: String, subtitle: String? = nil, badgeCount: Int? = nil) {
+        self.title = title
+        self.icon = icon
+        self.subtitle = subtitle
+        self.badgeCount = badgeCount
+    }
+    
     var body: some View {
-        HStack(spacing: 20) {
-            Image(systemName: icon)
-                .font(.title)
-                .foregroundColor(.pink)
-                .frame(width: 32)
-            Text(title)
-                .font(.system(size: 24, weight: .semibold, design: .rounded))
-                .foregroundColor(isDarkMode ? .white : .black)
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(Color.pink.opacity(0.15))
+                    .frame(width: 44, height: 44)
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundColor(.pink)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .foregroundColor(isDarkMode ? .white : .black)
+                
+                if let sub = subtitle {
+                    Text(sub)
+                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                        .foregroundColor(.gray)
+                        .lineLimit(1)
+                }
+            }
+            
+            Spacer()
+            
+            if let count = badgeCount, count > 0 {
+                Text("\(count)")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.pink)
+                    .clipShape(Capsule())
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.footnote.bold())
+                    .foregroundColor(Color(white: 0.5))
+            }
         }
-        .frame(width: 180, alignment: .leading)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .background(isDarkMode ? Color(white: 0.15) : Color(white: 0.95))
+        .cornerRadius(16)
+        .contentShape(Rectangle())
     }
 }

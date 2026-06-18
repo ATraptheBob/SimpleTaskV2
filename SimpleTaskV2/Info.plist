@@ -15,5 +15,11 @@
 	</array>
 	<key>GIDClientID</key>
 	<string>645108702205-fdgev8hbmmtn42jjgr1fmi6v873u1ff6.apps.googleusercontent.com</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>SimpleTask uses speech recognition to quickly convert your spoken words into structured tasks.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SimpleTask needs access to your microphone so you can quickly dictate and capture new tasks.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 </dict>
 </plist>

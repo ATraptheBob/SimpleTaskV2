@@ -1,15 +1,18 @@
 import SwiftUI
 import SwiftData
 internal import Combine
+#if os(iOS)
+import ActivityKit
+#endif
 
 struct TimerView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     
     // Preferences
-    @AppStorage("isDarkMode") private var isDarkMode = true
-    @AppStorage("pomodoroDuration") private var sessionLength = 25
-    @AppStorage("breakDuration") private var breakDuration = 5
+    @AppStorage("isDarkMode", store: UserDefaults(suiteName: "group.com.wilsonlee.SimpleTaskV2")) private var isDarkMode = true
+    @AppStorage("pomodoroDuration", store: UserDefaults(suiteName: "group.com.wilsonlee.SimpleTaskV2")) private var sessionLength = 25
+    @AppStorage("breakDuration", store: UserDefaults(suiteName: "group.com.wilsonlee.SimpleTaskV2")) private var breakDuration = 5
     
     // Timer State
     @State private var timeRemaining: Int = 1500
@@ -18,8 +21,11 @@ struct TimerView: View {
     @State private var selectedSubject = "Focus"
     
     // Persistence for backgrounding
-    @AppStorage("targetEndTime") private var targetEndTime: Double = 0
-    @AppStorage("storedTimeRemaining") private var storedTimeRemaining: Int = 1500
+    @AppStorage("targetEndTime", store: UserDefaults(suiteName: "group.com.wilsonlee.SimpleTaskV2")) private var targetEndTime: Double = 0
+    @AppStorage("storedTimeRemaining", store: UserDefaults(suiteName: "group.com.wilsonlee.SimpleTaskV2")) private var storedTimeRemaining: Int = 1500
+    
+    // Landscape Detection
+    @State private var isLandscape: Bool = UIDevice.current.orientation.isLandscape
     
     let subjects = ["Focus", "Coding", "Reading", "Math", "Writing", "Design"]
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -36,7 +42,7 @@ struct TimerView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                (isDarkMode ? Color(white: 0.05) : Color(white: 0.95)).ignoresSafeArea()
+                DynamicBackgroundView()
                 
                 VStack(spacing: 40) {
                     
@@ -124,10 +130,63 @@ struct TimerView: View {
                     Spacer()
                 }
                 .padding(.top, 20)
+                .opacity(isLandscape ? 0 : 1) // Hide portrait elements when in landscape
+                
+                // ---------------------------------------------------------
+                // GORGEOUS FULL-SCREEN LANDSCAPE FOCUS MODE
+                // ---------------------------------------------------------
+                if isLandscape {
+                    ZStack {
+                        Color.black.edgesIgnoringSafeArea(.all) // Dark base
+                        
+                        // Glassy gradient orb background
+                        Circle()
+                            .fill(LinearGradient(gradient: Gradient(colors: [activeColor.opacity(0.8), activeColor.opacity(0.2)]), startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 400, height: 400)
+                            .blur(radius: 80)
+                            .offset(x: -150, y: 100)
+                        
+                        VStack(spacing: 16) {
+                            HStack {
+                                Image(systemName: isBreakMode ? "cup.and.saucer.fill" : "brain.head.profile")
+                                    .font(.title2)
+                                    .foregroundColor(activeColor)
+                                Text(isBreakMode ? "Break Time" : selectedSubject)
+                                    .font(.title2.bold())
+                                    .foregroundColor(.white)
+                            }
+                            
+                            Text(timeString(from: timeRemaining))
+                                .font(.system(size: 140, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                                .shadow(color: activeColor.opacity(0.5), radius: 20, x: 0, y: 10)
+                                .contentTransition(.numericText())
+                            
+                            // Discreet interactive controls
+                            HStack(spacing: 40) {
+                                Button(action: toggleTimer) {
+                                    Image(systemName: timerRunning ? "pause.circle.fill" : "play.circle.fill")
+                                        .font(.system(size: 50))
+                                        .foregroundColor(activeColor)
+                                        .background(Circle().fill(Color.white.opacity(0.1)))
+                                }
+                            }
+                            .padding(.top, 10)
+                        }
+                    }
+                    .transition(.opacity)
+                    .zIndex(100)
+                }
             }
         }
         .onAppear {
             calculateBackgroundTime()
+            updateOrientation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+            withAnimation(.easeInOut(duration: 0.5)) {
+                updateOrientation()
+            }
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active { calculateBackgroundTime() }
@@ -136,6 +195,10 @@ struct TimerView: View {
             if timerRunning {
                 if timeRemaining > 0 {
                     timeRemaining -= 1
+                    // Update Live Activity every 30s so the progress ring stays accurate
+                    if timeRemaining % 30 == 0 {
+                        startOrUpdateLiveActivity()
+                    }
                 } else {
                     handleTimerCompletion()
                 }
@@ -144,8 +207,14 @@ struct TimerView: View {
     }
     
     // ---------------------------------------------------------
-    // TIMER ENGINE
+    // TIMER ENGINE & HELPERS
     // ---------------------------------------------------------
+    
+    private func updateOrientation() {
+        if UIDevice.current.orientation.isValidInterfaceOrientation {
+            isLandscape = UIDevice.current.orientation.isLandscape
+        }
+    }
     
     private func handleTimerCompletion() {
         HapticAndSoundManager.shared.playSuccessSound()
@@ -164,6 +233,7 @@ struct TimerView: View {
             }
             
             NotificationManager.shared.scheduleBreakNotification(durationInSeconds: Double(timeRemaining))
+            startOrUpdateLiveActivity()
             
         } else {
             // BREAK FINISHED -> RESET TO POMODORO
@@ -173,6 +243,7 @@ struct TimerView: View {
                 timeRemaining = sessionLength * 60
                 targetEndTime = 0
             }
+            startOrUpdateLiveActivity()
         }
     }
 
@@ -190,12 +261,14 @@ struct TimerView: View {
             } else {
                 NotificationManager.shared.scheduleTimerNotification(durationInSeconds: Double(timeRemaining))
             }
+            startOrUpdateLiveActivity()
         } else {
             storedTimeRemaining = timeRemaining
             targetEndTime = 0
             
             NotificationManager.shared.cancelTimerNotification()
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["break_timer_complete"])
+            startOrUpdateLiveActivity() // Updates the live activity to show "PAUSED" state
         }
     }
 
@@ -209,6 +282,7 @@ struct TimerView: View {
         
         NotificationManager.shared.cancelTimerNotification()
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["break_timer_complete"])
+        endLiveActivity()
     }
 
     private func endSessionEarly() {
@@ -254,5 +328,51 @@ struct TimerView: View {
         let minutes = seconds / 60
         let remainingSeconds = seconds % 60
         return String(format: "%02d:%02d", minutes, remainingSeconds)
+    }
+
+    // ---------------------------------------------------------
+    // LIVE ACTIVITIES
+    // ---------------------------------------------------------
+    
+    private func startOrUpdateLiveActivity() {
+        #if os(iOS)
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        
+        let state = PomodoroAttributes.ContentState(
+            timerEndTime: timerRunning ? Date().addingTimeInterval(Double(timeRemaining)) : nil,
+            isBreak: isBreakMode,
+            subject: selectedSubject
+        )
+        
+        // Find an existing active activity to update
+        if let activity = Activity<PomodoroAttributes>.activities.first(where: { $0.activityState == .active }) {
+            Task {
+                await activity.update(ActivityContent(state: state, staleDate: nil))
+            }
+        } else {
+            // No active activity found, start a new one
+            do {
+                let attributes = PomodoroAttributes(sessionDuration: isBreakMode ? (breakDuration * 60) : (sessionLength * 60))
+                let _ = try Activity.request(attributes: attributes, content: ActivityContent(state: state, staleDate: nil), pushType: nil)
+            } catch {
+                print("Error starting Live Activity: \(error)")
+            }
+        }
+        #endif
+    }
+    
+    private func endLiveActivity() {
+        #if os(iOS)
+        Task {
+            for activity in Activity<PomodoroAttributes>.activities {
+                let state = PomodoroAttributes.ContentState(
+                    timerEndTime: nil,
+                    isBreak: isBreakMode,
+                    subject: selectedSubject
+                )
+                await activity.end(ActivityContent(state: state, staleDate: nil), dismissalPolicy: .immediate)
+            }
+        }
+        #endif
     }
 }

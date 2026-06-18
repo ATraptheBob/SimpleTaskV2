@@ -3,7 +3,10 @@ import UserNotifications
 
 protocol NotificationScheduling {
     func scheduleMorningBriefing(activeTasks: Int, dueHabits: Int)
+    func scheduleEveningBriefing(completedTasks: Int, pendingTasks: Int)
     func scheduleStreakRescue(habitName: String?)
+    func scheduleTaskReminders(task: AppTask)
+    func cancelTaskReminders(taskId: String)
 }
 
 // 1. We add NSObject and UNUserNotificationCenterDelegate to give this class more authority
@@ -76,7 +79,29 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Notificat
         UNUserNotificationCenter.current().add(request)
     }
     
-    // 2. The Streak Rescue (Runs at 9:00 PM if a streak is in danger)
+    // 2. The Evening Briefing (Runs daily at 8:00 PM)
+    func scheduleEveningBriefing(completedTasks: Int, pendingTasks: Int) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["evening_briefing"])
+        
+        let content = UNMutableNotificationContent()
+        content.title = "Evening Review 🌙"
+        if completedTasks > 0 {
+            content.body = "You completed \(completedTasks) tasks today! Ready to plan for tomorrow?"
+        } else {
+            content.body = "Take a moment to reflect on today and plan for tomorrow."
+        }
+        content.sound = .default
+        
+        var dateComponents = DateComponents()
+        dateComponents.hour = 20 // 8:00 PM
+        dateComponents.minute = 0
+        
+        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+        let request = UNNotificationRequest(identifier: "evening_briefing", content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
+    }
+    
+    // 3. The Streak Rescue (Runs at 9:00 PM if a streak is in danger)
     func scheduleStreakRescue(habitName: String?) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["streak_rescue"])
         
@@ -110,5 +135,56 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Notificat
         let request = UNNotificationRequest(identifier: "break_timer_complete", content: content, trigger: trigger)
         
         UNUserNotificationCenter.current().add(request)
+    }
+    
+    // 4. Task Reminders (Standard + Nagging)
+    func scheduleTaskReminders(task: AppTask) {
+        let baseId = "task_\(task.id)"
+        
+        // Always cancel existing so we don't duplicate
+        cancelTaskReminders(taskId: task.id)
+        
+        guard !task.isCompleted, let dueDate = task.dueDate else { return }
+        
+        // Don't schedule in the past
+        guard dueDate > Date() else { return }
+        
+        let content = UNMutableNotificationContent()
+        content.title = task.isUrgent ? "URGENT: \(task.title)" : task.title
+        content.body = task.isUrgent ? "This task is due! Please complete it." : "This task is due."
+        content.sound = .default
+        
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: dueDate)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(identifier: baseId, content: content, trigger: trigger)
+        
+        UNUserNotificationCenter.current().add(request)
+        
+        // If it's urgent, keep bothering the user
+        if task.isUrgent {
+            let intervals = [15, 30, 60] // Minutes after due date
+            for (index, offset) in intervals.enumerated() {
+                let nagDate = dueDate.addingTimeInterval(TimeInterval(offset * 60))
+                // Only schedule if the nag time is in the future
+                guard nagDate > Date() else { continue }
+                
+                let nagComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: nagDate)
+                let nagTrigger = UNCalendarNotificationTrigger(dateMatching: nagComponents, repeats: false)
+                
+                let nagContent = UNMutableNotificationContent()
+                nagContent.title = "URGENT REMINDER: \(task.title)"
+                nagContent.body = "You still haven't marked this as completed!"
+                nagContent.sound = .default // Could use a louder/critical sound if allowed
+                
+                let nagRequest = UNNotificationRequest(identifier: "\(baseId)_nag_\(index)", content: nagContent, trigger: nagTrigger)
+                UNUserNotificationCenter.current().add(nagRequest)
+            }
+        }
+    }
+    
+    func cancelTaskReminders(taskId: String) {
+        let baseId = "task_\(taskId)"
+        let identifiers = [baseId, "\(baseId)_nag_0", "\(baseId)_nag_1", "\(baseId)_nag_2"]
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
     }
 }

@@ -48,6 +48,20 @@ class GoogleWorkspaceManager: ObservableObject {
         print("Google Sign-In flow completed.")
     }
     
+    @MainActor
+    func restoreSignIn() async {
+        do {
+            let user = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
+            self.accessToken = user.accessToken.tokenString
+            self.currentUserEmail = user.profile?.email
+            self.isSignedIn = true
+            print("Google Sign-In restored.")
+        } catch {
+            print("Could not restore Google Sign-In: \(error.localizedDescription)")
+            self.isSignedIn = false
+        }
+    }
+    
     func signOut() {
         GIDSignIn.sharedInstance.signOut()
         self.isSignedIn = false

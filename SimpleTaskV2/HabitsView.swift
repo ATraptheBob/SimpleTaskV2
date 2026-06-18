@@ -30,7 +30,7 @@ struct HabitsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                (isDarkMode ? Color.black : Color.white).ignoresSafeArea()
+                DynamicBackgroundView()
                 
                 VStack(spacing: 0) {
                     HStack(alignment: .center) {
@@ -75,8 +75,8 @@ struct HabitDashboardPanel: View {
     
     @State private var months: [MonthData] = []
     
-    // Cache the mapping to avoid redundant iterations
-    private var habitCompletionsCache: [UUID: Set<Date>] {
+    // Build once and pass through — avoids rebuilding the cache per access
+    private func buildCompletionsCache() -> [UUID: Set<Date>] {
         let calendar = Calendar.current
         var cache: [UUID: Set<Date>] = [:]
         for habit in habits {
@@ -85,9 +85,8 @@ struct HabitDashboardPanel: View {
         return cache
     }
 
-    var dailyCompletions: [Date: Int] {
+    private func dailyCompletions(cache: [UUID: Set<Date>]) -> [Date: Int] {
         var counts: [Date: Int] = [:]
-        let cache = habitCompletionsCache
         for habit in habits {
             let days = cache[habit.id] ?? []
             for day in days { counts[day, default: 0] += 1 }
@@ -95,14 +94,12 @@ struct HabitDashboardPanel: View {
         return counts
     }
 
-    private func getMonthlyStats(completions: [Date: Int]) -> (total: Int, bestStreak: Int, dailyAvg: Double) {
+    private func getMonthlyStats(completions: [Date: Int], cache: [UUID: Set<Date>]) -> (total: Int, bestStreak: Int, dailyAvg: Double) {
         guard !months.isEmpty, selectedMonthIndex < months.count else { return (0, 0, 0) }
         let currentMonth = months[selectedMonthIndex]
         let calendar = Calendar.current
         
         let monthDates = currentMonth.dates.filter { calendar.isDate($0, equalTo: currentMonth.monthStart, toGranularity: .month) }
-        
-        let cache = habitCompletionsCache
 
         // DYNAMIC ACCURACY: Precompute active habits by weekday to avoid O(Days * Habits) redundant iterations
         var activeHabitsByWeekday: [Int: [HabitItem]] = [:]
@@ -143,8 +140,10 @@ struct HabitDashboardPanel: View {
     }
 
     var body: some View {
-        let currentCompletions = dailyCompletions
-        let stats = getMonthlyStats(completions: currentCompletions)
+        // Build the cache ONCE per body evaluation
+        let cache = buildCompletionsCache()
+        let currentCompletions = dailyCompletions(cache: cache)
+        let stats = getMonthlyStats(completions: currentCompletions, cache: cache)
 
         return HStack(alignment: .center, spacing: 30) {
             HabitHeatmapView(completions: currentCompletions, isDarkMode: isDarkMode, selectedMonth: $selectedMonthIndex, months: $months)
@@ -373,7 +372,10 @@ struct HabitSection: View {
                             }
                             .padding(.top, 14)
                             .padding(.leading, 38)
-                            .transition(.move(edge: .top).combined(with: .opacity))
+                            
+                            MiniHeatmapView(habit: habit, isDarkMode: isDarkMode)
+                                .padding(.leading, 38)
+                                .padding(.top, 4)
                         }
                     }
                     .opacity(isCompleted(habit) ? 0.5 : 1.0)
@@ -470,4 +472,33 @@ struct HabitSection: View {
             case .none: break
             }
         }
+}
+
+struct MiniHeatmapView: View {
+    let habit: HabitItem
+    let isDarkMode: Bool
+    
+    // Shows the last 28 days (4 weeks)
+    private let columns = Array(repeating: GridItem(.fixed(16), spacing: 4), count: 7)
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Consistency Streak: \(habit.streak) days")
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundColor(isDarkMode ? .gray : .secondary)
+            
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach((0..<28).reversed(), id: \.self) { dayOffset in
+                    let date = Calendar.current.date(byAdding: .day, value: -dayOffset, to: Date())!
+                    let isCompleted = habit.completionDates.contains { Calendar.current.isDate($0, inSameDayAs: date) }
+                    
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(isCompleted ? Color.orange : (isDarkMode ? Color(white: 0.2) : Color.gray.opacity(0.2)))
+                        .frame(width: 16, height: 16)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 8)
+    }
 }

@@ -9,6 +9,27 @@ enum RepeatInterval: String, Codable, CaseIterable {
 }
 
 import EventKit
+import ActivityKit
+
+public struct PomodoroAttributes: ActivityAttributes {
+    public struct ContentState: Codable, Hashable {
+        public var timerEndTime: Date?
+        public var isBreak: Bool
+        public var subject: String
+        
+        public init(timerEndTime: Date?, isBreak: Bool, subject: String) {
+            self.timerEndTime = timerEndTime
+            self.isBreak = isBreak
+            self.subject = subject
+        }
+    }
+
+    public var sessionDuration: Int
+    
+    public init(sessionDuration: Int) {
+        self.sessionDuration = sessionDuration
+    }
+}
 
 struct AppTask: Identifiable {
     var id: String { reminder.calendarItemIdentifier }
@@ -51,32 +72,51 @@ struct AppTask: Identifiable {
         set { reminder.notes = newValue }
     }
     
-    // Parses a hidden JSON payload at the end of the notes field: <!-- {"duration": "15m"} -->
+    // MARK: - Hidden JSON Metadata in Notes
+    // Stores metadata as a hidden HTML comment: <!-- {"duration": "15m", "importance": "high"} -->
+    
+    private var metadataDict: [String: String]? {
+        guard let notes = reminder.notes,
+              let range = notes.range(of: "<!-- \\{.*\\} -->", options: .regularExpression),
+              let jsonData = String(notes[range]).replacingOccurrences(of: "<!-- ", with: "").replacingOccurrences(of: " -->", with: "").data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONSerialization.jsonObject(with: jsonData) as? [String: String]
+    }
+    
+    private mutating func setMetadata(key: String, value: String?) {
+        var dict = metadataDict ?? [:]
+        dict[key] = value
+        
+        var currentNotes = reminder.notes ?? ""
+        if let range = currentNotes.range(of: "<!-- \\{.*\\} -->", options: .regularExpression) {
+            currentNotes.removeSubrange(range)
+        }
+        currentNotes = currentNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        if !dict.isEmpty, let jsonData = try? JSONSerialization.data(withJSONObject: dict),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            if !currentNotes.isEmpty {
+                currentNotes += "\n\n"
+            }
+            currentNotes += "<!-- \(jsonString) -->"
+        }
+        reminder.notes = currentNotes
+    }
+    
     var approximateDuration: String? {
-        get {
-            guard let notes = reminder.notes,
-                  let range = notes.range(of: "<!-- \\{.*\\} -->", options: .regularExpression),
-                  let jsonData = String(notes[range]).replacingOccurrences(of: "<!-- ", with: "").replacingOccurrences(of: " -->", with: "").data(using: .utf8) else {
-                return nil
-            }
-            let dict = try? JSONSerialization.jsonObject(with: jsonData) as? [String: String]
-            return dict?["duration"]
-        }
-        set {
-            var currentNotes = reminder.notes ?? ""
-            if let range = currentNotes.range(of: "<!-- \\{.*\\} -->", options: .regularExpression) {
-                currentNotes.removeSubrange(range)
-            }
-            if let newValue = newValue {
-                let json = "<!-- {\"duration\": \"\(newValue)\"} -->"
-                currentNotes = currentNotes.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !currentNotes.isEmpty {
-                    currentNotes += "\n\n"
-                }
-                currentNotes += json
-            }
-            reminder.notes = currentNotes
-        }
+        get { metadataDict?["duration"] }
+        set { setMetadata(key: "duration", value: newValue) }
+    }
+    
+    var aiImportance: String? {
+        get { metadataDict?["importance"] }
+        set { setMetadata(key: "importance", value: newValue) }
+    }
+    
+    var isUrgent: Bool {
+        get { metadataDict?["urgent"] == "true" }
+        set { setMetadata(key: "urgent", value: newValue ? "true" : nil) }
     }
 }
 
@@ -182,6 +222,23 @@ final class SubtaskItem {
     }
 }
 
+// ---------------------------------------------------------
+// WIDGET QUEUE (For seamless Lock Screen interactions)
+// ---------------------------------------------------------
+@Model
+final class QueuedTaskAction {
+    @Attribute(.unique) var id: UUID = UUID()
+    var taskID: String
+    var actionType: String // e.g. "complete", "uncomplete"
+    var timestamp: Date
+    
+    init(taskID: String, actionType: String) {
+        self.taskID = taskID
+        self.actionType = actionType
+        self.timestamp = Date()
+    }
+}
+
 // MARK: - AI Models
 
 struct SuggestedTask: Codable, Identifiable {
@@ -189,10 +246,94 @@ struct SuggestedTask: Codable, Identifiable {
     let title: String
     let durationMinutes: Int
     let reason: String
+    
+    enum CodingKeys: String, CodingKey {
+        case title, durationMinutes, reason
+    }
+    
+    init(title: String, durationMinutes: Int, reason: String) {
+        self.title = title
+        self.durationMinutes = durationMinutes
+        self.reason = reason
+        self.id = UUID()
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.title = try container.decode(String.self, forKey: .title)
+        self.durationMinutes = try container.decode(Int.self, forKey: .durationMinutes)
+        self.reason = try container.decode(String.self, forKey: .reason)
+        self.id = UUID()
+    }
 }
 
 struct MorningBriefing: Codable {
     let aiMessage: String
     let suggestedTasks: [SuggestedTask]
     let prioritizedReminderIds: [String]
+}
+
+struct EveningBriefing: Codable {
+    let summary: String
+    let productivityScore: Int
+    let completedCount: Int
+    let tomorrowSuggestions: [SuggestedTask]
+}
+
+struct ImportanceLabel: Codable {
+    let reminderId: String
+    let importance: String
+    let reason: String
+}
+
+struct ImportanceResponse: Codable {
+    let labels: [ImportanceLabel]
+}
+
+struct DurationPrediction: Codable {
+    let reminderId: String
+    let estimatedMinutes: Int
+}
+
+struct DurationResponse: Codable {
+    let predictions: [DurationPrediction]
+}
+
+struct QuickCaptureResponse: Codable {
+    let tasks: [SuggestedTask]
+}
+
+struct DayPlanPrediction: Codable {
+    let reminderId: String
+    let scheduledTime: String // Expected format "HH:mm"
+}
+
+struct DayPlanResponse: Codable {
+    let schedule: [DayPlanPrediction]
+}
+
+struct SmartSchedulePrediction: Codable {
+    let reminderId: String
+    let scheduledDateString: String // "yyyy-MM-dd HH:mm"
+}
+
+struct VoiceTaskResponse: Codable {
+    struct ParsedTask: Codable {
+        let title: String
+        let notes: String?
+        let dueDateString: String? // "yyyy-MM-dd HH:mm"
+        let isImportant: Bool
+    }
+    let tasks: [ParsedTask]
+}
+
+struct SmartScheduleResponse: Codable {
+    let schedule: [SmartSchedulePrediction]
+}
+
+struct WeeklyInsightsResponse: Codable {
+    let summary: String
+    let topHabits: [String]
+    let struggles: [String]
+    let recommendedAction: String
 }

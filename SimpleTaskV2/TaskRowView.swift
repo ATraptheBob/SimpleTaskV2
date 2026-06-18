@@ -45,6 +45,29 @@ struct TaskRowView: View {
                     }
                 }
                 Spacer()
+                
+                // AI Duration Badge
+                if let duration = task.approximateDuration {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.fill")
+                            .font(.system(size: 10))
+                        Text(duration.hasSuffix("m") ? duration : "\(duration)m")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                    }
+                    .foregroundColor(isDarkMode ? .gray : .secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(isDarkMode ? Color(white: 0.2) : Color(white: 0.9))
+                    .clipShape(Capsule())
+                }
+                
+                // AI Importance Dot
+                if let importance = task.aiImportance {
+                    Circle()
+                        .fill(importanceColor(for: importance))
+                        .frame(width: 8, height: 8)
+                        .padding(.leading, 2)
+                }
             }
             .contentShape(Rectangle()) // Confines the expand tap to the header ONLY
             .onTapGesture {
@@ -137,5 +160,16 @@ struct TaskRowView: View {
         .padding(.horizontal, 16)
         .background(isExpanded ? (isDarkMode ? Color(white: 0.15) : Color(white: 0.95)) : Color.clear)
         .cornerRadius(isExpanded ? 16 : 0)
+    }
+    
+    // MARK: - Helpers
+    
+    private func importanceColor(for level: String) -> Color {
+        switch level.lowercased() {
+        case "high": return .red
+        case "medium": return .yellow
+        case "low": return .gray
+        default: return .clear
+        }
     }
 }

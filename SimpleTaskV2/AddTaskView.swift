@@ -16,6 +16,7 @@ struct AddTaskView: View {
     @State private var notes = ""
     @State private var selectedCalendarIdentifier: String = ""
     @State private var priority: Int = 0  // 0 = none, 1 = high, 5 = medium, 9 = low
+    @State private var isUrgent: Bool = false
     
     var taskToEdit: AppTask?
     
@@ -127,6 +128,19 @@ struct AddTaskView: View {
                                     .background(isDarkMode ? Color(white: 0.12) : Color.white)
                                     .cornerRadius(14)
                                     .transition(.opacity.combined(with: .move(edge: .top)))
+                                
+                                HStack {
+                                    Label("Urgent Reminder (Nag me)", systemImage: "bell.badge")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundColor(isUrgent ? .red : .gray)
+                                    
+                                    Spacer()
+                                    
+                                    Toggle("", isOn: $isUrgent)
+                                        .labelsHidden()
+                                        .tint(.red)
+                                }
+                                .padding(.top, 4)
                             }
                         }
                         
@@ -194,6 +208,7 @@ struct AddTaskView: View {
                     
                     notes = task.notes
                     priority = task.reminder.priority
+                    isUrgent = task.isUrgent
                     selectedCalendarIdentifier = task.reminder.calendar.calendarIdentifier
                 } else {
                     isTitleFocused = true
@@ -242,10 +257,12 @@ struct AddTaskView: View {
             task.dueDate = finalDate
             task.notes = notes
             task.reminder.priority = priority
+            task.isUrgent = isUrgent
             if let selectedCalendar = selectedCalendar {
                 task.reminder.calendar = selectedCalendar
             }
             try? eventKitManager.updateTask(task)
+            NotificationManager.shared.scheduleTaskReminders(task: task)
         } else {
             let reminder = EKReminder(eventStore: eventKitManager.store)
             reminder.calendar = selectedCalendar ?? eventKitManager.store.defaultCalendarForNewReminders()
@@ -256,7 +273,10 @@ struct AddTaskView: View {
                 let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: finalDate)
                 reminder.dueDateComponents = components
             }
-            try? eventKitManager.saveTask(AppTask(reminder: reminder))
+            var newTask = AppTask(reminder: reminder)
+            newTask.isUrgent = isUrgent
+            try? eventKitManager.saveTask(newTask)
+            NotificationManager.shared.scheduleTaskReminders(task: newTask)
         }
         
         Task {

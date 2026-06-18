@@ -16,6 +16,11 @@ struct StatsView: View {
     @State private var selectedTimeFilter: TimeFilter = .allTime
     @State private var bestStreak: Int = 0
     
+    // Weekly AI Insights
+    @State private var weeklyInsights: WeeklyInsightsResponse?
+    @State private var isGeneratingInsights = false
+    @State private var showInsightsError = false
+    
     private func isDate(_ date: Date?, in filter: TimeFilter) -> Bool {
         guard let date = date else { return false }
         let calendar = Calendar.current
@@ -54,7 +59,7 @@ struct StatsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                (isDarkMode ? Color(white: 0.05) : Color(white: 0.95)).ignoresSafeArea()
+                DynamicBackgroundView()
                 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -136,6 +141,95 @@ struct StatsView: View {
                         .padding()
                         .background(isDarkMode ? Color(white: 0.1) : Color.white)
                         .cornerRadius(16)
+                        
+                        // Weekly AI Insights
+                        VStack(alignment: .leading, spacing: 16) {
+                            HStack {
+                                Image(systemName: "sparkles")
+                                    .foregroundColor(.purple)
+                                    .font(.title2)
+                                Text("Weekly AI Insights")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(isDarkMode ? .white : .black)
+                                Spacer()
+                                
+                                Button(action: {
+                                    fetchInsights()
+                                }) {
+                                    if isGeneratingInsights {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .purple))
+                                    } else {
+                                        Image(systemName: "arrow.clockwise")
+                                            .foregroundColor(.purple)
+                                            .font(.body.weight(.bold))
+                                    }
+                                }
+                                .disabled(isGeneratingInsights)
+                            }
+                            
+                            if showInsightsError {
+                                Text("Failed to generate insights. Check your API key or internet connection.")
+                                    .foregroundColor(.red)
+                                    .font(.subheadline)
+                            } else if let insights = weeklyInsights {
+                                Text(insights.summary)
+                                    .font(.body)
+                                    .foregroundColor(isDarkMode ? .gray : .secondary)
+                                
+                                HStack(alignment: .top, spacing: 16) {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("🏆 Top Habits")
+                                            .font(.subheadline)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.green)
+                                        ForEach(insights.topHabits, id: \.self) { habit in
+                                            Text("• \(habit)")
+                                                .font(.subheadline)
+                                                .foregroundColor(isDarkMode ? .white : .black)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("📉 Struggles")
+                                            .font(.subheadline)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.orange)
+                                        ForEach(insights.struggles, id: \.self) { habit in
+                                            Text("• \(habit)")
+                                                .font(.subheadline)
+                                                .foregroundColor(isDarkMode ? .white : .black)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .padding(.top, 4)
+                                
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Action Plan")
+                                        .font(.subheadline)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.purple)
+                                    Text(insights.recommendedAction)
+                                        .font(.subheadline)
+                                        .foregroundColor(isDarkMode ? .white : .black)
+                                }
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.purple.opacity(0.1))
+                                .cornerRadius(12)
+                            } else if !isGeneratingInsights {
+                                Text("Tap the refresh button to generate your weekly insights.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        .padding(20)
+                        .background(isDarkMode ? Color(white: 0.15) : Color.white)
+                        .cornerRadius(24)
+                        .shadow(color: .purple.opacity(0.15), radius: 20, x: 0, y: 10)
                     }
                     .padding()
                     
@@ -149,6 +243,27 @@ struct StatsView: View {
             }
             .onChange(of: habits) { _, _ in
                 bestStreak = habits.map { $0.streak }.max() ?? 0
+            }
+        }
+    }
+    
+    private func fetchInsights() {
+        isGeneratingInsights = true
+        showInsightsError = false
+        
+        Task {
+            do {
+                let insights = try await GeminiManager.shared.generateWeeklyInsights(habits: habits, sessions: sessions)
+                await MainActor.run {
+                    self.weeklyInsights = insights
+                    self.isGeneratingInsights = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.showInsightsError = true
+                    self.isGeneratingInsights = false
+                    print("Error generating insights: \(error)")
+                }
             }
         }
     }

@@ -10,7 +10,6 @@ struct TaskRowView: View {
     var onToggleExpand: () -> Void
     var onOpenCalendar: () -> Void
 
-    // FIX: Using an Edit Mode toggle specifically for Notes
     @State private var isEditingNotes = false
     @State private var selectedPhotoItem: PhotosPickerItem?
 

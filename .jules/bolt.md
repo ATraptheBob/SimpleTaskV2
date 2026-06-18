@@ -1,3 +1,7 @@
 ## 2024-06-10 - O(N) operations in Computed Properties
 **Learning:** In SwiftUI, `var body` evaluations can evaluate computed properties multiple times if referenced multiple times. In `HabitDashboardPanel`'s `monthlyStats`, accessing `.total`, `.bestStreak`, and `.dailyAvg` evaluated the expensive O(N^3) body of `monthlyStats` three times during every render. Nested operations like `Set(habit.completionDates.map {...})` inside a loop for each day of the month creates extreme performance bottlenecks.
 **Action:** When a computed property does heavy work, assign it to a local variable `let stats = monthlyStats` at the top of the View's `body` or refactor it to a method, avoiding redundant multiple computations. Lift out static mappings (like creating a cache dictionary) out of nested loops.
+
+## 2024-06-12 - SwiftUI View Body O(N) Properties During Searching
+**Learning:** Computed properties that do O(N log N) sorting and O(N) filtering (like calculating `activeTasks` and `dueHabits` inside `InboxView.swift`) are evaluated *every single time* they are referenced in `var body: some View`. In components with high-frequency updates (like live `searchText` binding tied to keystrokes), referencing these properties 4-5 times in the view hierarchy multiplies the bottleneck severely.
+**Action:** Always evaluate expensive computed properties exactly once at the top of the `body` property (e.g., `let currentActiveTasks = activeTasks`) and return the view hierarchy using these cached local variables.

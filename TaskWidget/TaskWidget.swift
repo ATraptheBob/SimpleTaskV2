@@ -290,7 +290,6 @@ struct ToggleTaskIntent: AppIntent {
             context.insert(action)
             try context.save()
         } catch {
-            print("Failed to queue task action: \(error)")
         }
         return .result()
     }
@@ -344,7 +343,6 @@ struct ToggleHabitIntent: AppIntent {
                 try context.save()
             }
         } catch {
-            print("Failed to toggle habit: \(error)")
         }
         return .result()
     }

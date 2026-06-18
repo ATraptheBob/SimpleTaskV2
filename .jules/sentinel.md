@@ -3,3 +3,8 @@
 **Learning:** Even entirely local, offline apps require strict input bounds. Local persistence frameworks can be easily DOSed by the user (or via synced external data) if arbitrary sizes are allowed to serialize into the main context or views.
 **Prevention:** Always enforce logical limits directly on SwiftUI text fields using `.onChange` text truncation, strictly limit unbounded arrays (like steps), and validate `Data` object sizes before persisting them.
 \n## 2024-05-15\n\n### Vulnerability\nMissing confirmation step for critical destructive actions (Erase All Data) within SwiftUI.\n\n### Learning\nIn SwiftUI, critical irreversible actions such as data deletion should always prompt a confirmation alert to prevent user error. The standard approach involves adding a boolean `@State` property linked to an `.alert` modifier.\n\n### Prevention\nAlways verify that buttons with destructive behaviors have intermediate confirmation flows before executing permanent logic.
+
+## 2024-06-25 - Format String Vulnerability in SwiftUI Text(.init())
+**Vulnerability:** User-controlled input was passed unvalidated to `Text(.init(task.notes))` which parses it as a `LocalizedStringKey`. This creates a format string vulnerability because specifiers like `%@` can crash the app if they are missing corresponding arguments.
+**Learning:** In SwiftUI, `Text(.init(_:))` and `Text(LocalizedStringKey(_:))` are dangerous when used directly with user input. Even in an offline app, a user could accidentally or maliciously paste strings that cause immediate crashes upon view rendering.
+**Prevention:** Always use safe markdown parsing, such as `AttributedString(markdown:)`, instead of relying on `Text(.init())` for native markdown rendering when handling unvalidated text.

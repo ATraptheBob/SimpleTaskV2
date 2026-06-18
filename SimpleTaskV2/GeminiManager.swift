@@ -52,7 +52,7 @@ class GeminiManager: ObservableObject {
         for model in models {
             let maxRetries = 3
             for attempt in 0..<maxRetries {
-                let endpoint = "\(endpointURL(for: model))?key=\(apiKey)"
+                let endpoint = endpointURL(for: model)
                 guard let url = URL(string: endpoint) else {
                     throw URLError(.badURL)
                 }
@@ -61,6 +61,7 @@ class GeminiManager: ObservableObject {
                 request.httpMethod = "POST"
                 request.timeoutInterval = 120
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
                 request.httpBody = jsonData
                 
                 let (data, response) = try await URLSession.shared.data(for: request)

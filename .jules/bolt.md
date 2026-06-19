@@ -13,3 +13,6 @@
 **Learning:** When using `commit: false` to batch `EventKit` saves (e.g. `try? eventKitManager.updateTask(task, commit: false)`) to avoid N+1 query performance bottlenecks, you must always remember to explicitly commit the changes *after* the loop using `try? eventKitManager.commitChanges()`. Failing to do so causes data loss.
 **Action:** Always verify that an explicit commit is called outside the loop when refactoring EventKit saves to be batched.
 ## 2024-05-18 - Fix EventKit N+1 Issue in Loops **Learning:** To prevent N+1 performance bottlenecks when updating multiple tasks in EventKit, avoid calling `store.save(..., commit: true)` within loops. **Action:** Use `store.save(..., commit: false)` to batch changes and call `store.commit()` once after the loop completes.
+## 2024-06-19 - Batch EventKit Commits
+**Learning:** Updating tasks in EventKit and saving synchronously inside a loop introduces an N+1 performance bottleneck. Furthermore, `firstIndex(where:)` array lookups inside a loop result in an O(N^2) time complexity.
+**Action:** Hoist the array into a keyed Dictionary (`Dictionary(uniqueKeysWithValues:)`) before the loop for O(1) lookups. To prevent N+1 database queries, avoid calling `store.save(..., commit: true)` within loops. Instead, use `store.save(..., commit: false)` to batch changes and call `store.commit()` once after the loop completes.

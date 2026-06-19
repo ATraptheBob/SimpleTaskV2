@@ -148,4 +148,35 @@ final class NotificationManagerTests: XCTestCase {
         XCTAssertEqual(trigger.dateComponents.minute, 0)
         XCTAssertTrue(trigger.repeats)
     }
+
+    func testScheduleBreakNotification_SchedulesNotification() async throws {
+        // Arrange
+        let durationInSeconds: TimeInterval = 300.0
+
+        // Act
+        NotificationManager.shared.scheduleBreakNotification(durationInSeconds: durationInSeconds)
+
+        // Allow time for center to process
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+
+        // Assert
+        let pendingRequests = await UNUserNotificationCenter.current().pendingNotificationRequests()
+
+        guard let request = pendingRequests.first(where: { $0.identifier == "breakTimer" }) else {
+            XCTFail("Break notification was not scheduled")
+            return
+        }
+
+        XCTAssertEqual(request.content.title, "Break Time Over")
+        XCTAssertEqual(request.content.body, "Time to get back to work!")
+
+        // Check trigger
+        guard let trigger = request.trigger as? UNTimeIntervalNotificationTrigger else {
+            XCTFail("Trigger is not UNTimeIntervalNotificationTrigger")
+            return
+        }
+
+        XCTAssertEqual(trigger.timeInterval, durationInSeconds)
+        XCTAssertFalse(trigger.repeats)
+    }
 }

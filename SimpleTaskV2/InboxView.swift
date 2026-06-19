@@ -731,9 +731,11 @@ struct InboxView: View {
                 let labels = try await GeminiManager.shared.labelImportance(reminders: pending.map { $0.reminder })
                 
                 await MainActor.run {
+                    let pendingDict = Dictionary(pending.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
                     for label in labels {
-                        if var task = pending.first(where: { $0.id == label.reminderId }) {
+                        if var task = pendingDict[label.reminderId] {
                             task.aiImportance = label.importance
+                            // batch updates to avoid N+1 query
                             try? eventKitManager.updateTask(task, commit: false)
                         }
                     }

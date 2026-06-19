@@ -54,7 +54,7 @@ final class AppTaskTests: XCTestCase {
         reminder.priority = 5
         XCTAssertFalse(appTask.isUrgent)
 
-        reminder.priority = 0 // None
+        reminder.priority = 0 // Priority none (0)
         XCTAssertFalse(appTask.isUrgent)
 
         // Test setter to true
@@ -71,5 +71,19 @@ final class AppTaskTests: XCTestCase {
         reminder.priority = 7
         appTask.isUrgent = false
         XCTAssertEqual(reminder.priority, 7)
+    }
+
+    func testIsUrgentEdgeCases() {
+        let reminder = EKReminder(eventStore: eventStore)
+        var appTask = AppTask(reminder: reminder)
+
+        reminder.priority = 2
+        XCTAssertTrue(appTask.isUrgent)
+
+        reminder.priority = 3
+        XCTAssertTrue(appTask.isUrgent)
+
+        reminder.priority = 9
+        XCTAssertFalse(appTask.isUrgent)
     }
 }

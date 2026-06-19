@@ -10,6 +10,7 @@ struct TaskRowView: View {
     var onToggleExpand: () -> Void
     var onOpenCalendar: () -> Void
 
+    // Using an Edit Mode toggle specifically for Notes
     @State private var isEditingNotes = false
     @State private var selectedPhotoItem: PhotosPickerItem?
 
@@ -104,7 +105,7 @@ struct TaskRowView: View {
                                     .background(isDarkMode ? Color(white: 0.25) : Color(white: 0.85))
                                     .clipShape(Capsule())
                             }
-                            .buttonStyle(.plain) // FIX: Isolates tap target
+                            .buttonStyle(.plain) // Isolates tap target
                         }
 
                         if isEditingNotes {
@@ -122,7 +123,7 @@ struct TaskRowView: View {
                                     .padding(.horizontal, 4)
                                     .onTapGesture { withAnimation { isEditingNotes = true } }
                             } else {
-                                // FIX: .init() allows standard URLs to be natively formatted as clickable links!
+                                // .init() allows standard URLs to be natively formatted as clickable links!
                                 Text(.init(task.notes))
                                     .font(.callout)
                                     .tint(.blue)
@@ -148,7 +149,7 @@ struct TaskRowView: View {
                                 .clipShape(Circle())
                                 .accessibilityLabel("Reschedule Task")
                         }
-                        .buttonStyle(.plain) // FIX: Prevents mass-activation
+                        .buttonStyle(.plain) // Prevents mass-activation
                     }
                     .padding(.top, 4)
                 }

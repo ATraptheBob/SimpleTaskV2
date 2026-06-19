@@ -862,6 +862,7 @@ struct InboxView: View {
                     let formatter = DateFormatter()
                     formatter.dateFormat = "yyyy-MM-dd HH:mm"
                     
+                    // Batch updates to avoid N+1 query
                     for pred in schedule {
                         if var task = pending.first(where: { $0.id == pred.reminderId }) {
                             if let newDate = formatter.date(from: pred.scheduledDateString) {

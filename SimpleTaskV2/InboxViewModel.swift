@@ -15,6 +15,7 @@ class InboxViewModel: ObservableObject {
     @Published var showingEveningApproval = false
 
     @Published var isParsingVoiceTask = false
+
     @Published var voiceTaskPlaceholderText = ""
     @Published var quickCaptureText = ""
 
@@ -126,9 +127,10 @@ class InboxViewModel: ObservableObject {
                 for label in labels {
                     if var task = pending.first(where: { $0.id == label.reminderId }) {
                         task.aiImportance = label.importance
-                        try? self.eventKitManager.updateTask(task)
+                        try? self.eventKitManager.updateTask(task, commit: false)
                     }
                 }
+                try? self.eventKitManager.commitChanges()
                 self.isFetchingBriefing = false
             } catch {
                 self.isFetchingBriefing = false
@@ -148,9 +150,10 @@ class InboxViewModel: ObservableObject {
                 for pred in predictions {
                     if var task = pending.first(where: { $0.id == pred.reminderId }) {
                         task.approximateDuration = "\(pred.estimatedMinutes)m"
-                        try? self.eventKitManager.updateTask(task)
+                        try? self.eventKitManager.updateTask(task, commit: false)
                     }
                 }
+                try? self.eventKitManager.commitChanges()
                 self.isFetchingBriefing = false
             } catch {
                 self.isFetchingBriefing = false
@@ -200,12 +203,13 @@ class InboxViewModel: ObservableObject {
 
                             if let newDate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: today) {
                                 task.dueDate = newDate
-                                try? self.eventKitManager.updateTask(task)
+                                try? self.eventKitManager.updateTask(task, commit: false)
                                 NotificationManager.shared.scheduleTaskReminders(task: task)
                             }
                         }
                     }
                 }
+                try? self.eventKitManager.commitChanges()
                 self.isFetchingBriefing = false
             } catch {
                 self.isFetchingBriefing = false
@@ -234,11 +238,12 @@ class InboxViewModel: ObservableObject {
                     if var task = pending.first(where: { $0.id == pred.reminderId }) {
                         if let newDate = formatter.date(from: pred.scheduledDateString) {
                             task.dueDate = newDate
-                            try? self.eventKitManager.updateTask(task)
+                            try? self.eventKitManager.updateTask(task, commit: false)
                             NotificationManager.shared.scheduleTaskReminders(task: task)
                         }
                     }
                 }
+                try? self.eventKitManager.commitChanges()
                 self.isFetchingBriefing = false
             } catch {
                 self.isFetchingBriefing = false
@@ -269,11 +274,12 @@ class InboxViewModel: ObservableObject {
                     if var task = overdue.first(where: { $0.id == pred.reminderId }) {
                         if let newDate = formatter.date(from: pred.scheduledDateString) {
                             task.dueDate = newDate
-                            try? self.eventKitManager.updateTask(task)
+                            try? self.eventKitManager.updateTask(task, commit: false)
                             NotificationManager.shared.scheduleTaskReminders(task: task)
                         }
                     }
                 }
+                try? self.eventKitManager.commitChanges()
                 self.isFetchingBriefing = false
             } catch {
                 self.isFetchingBriefing = false

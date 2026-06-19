@@ -111,8 +111,8 @@ class EventKitManager: ObservableObject {
         }
     }
     
-    func saveTask(_ task: AppTask) throws {
-        try store.save(task.reminder, commit: true)
+    func saveTask(_ task: AppTask, commit: Bool = true) throws {
+        try store.save(task.reminder, commit: commit)
         if let index = reminders.firstIndex(where: { $0.id == task.id }) {
             DispatchQueue.main.async { self.reminders[index] = task }
         } else {
@@ -120,8 +120,12 @@ class EventKitManager: ObservableObject {
         }
     }
     
-    func updateTask(_ task: AppTask) throws {
-        try saveTask(task)
+    func updateTask(_ task: AppTask, commit: Bool = true) throws {
+        try saveTask(task, commit: commit)
+    }
+
+    func commitChanges() throws {
+        try store.commit()
     }
     
     func deleteTask(_ task: AppTask) throws {

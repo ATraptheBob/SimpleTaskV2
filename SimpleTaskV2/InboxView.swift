@@ -9,28 +9,40 @@ struct InboxView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var eventKitManager = EventKitManager.shared
     @Query private var allHabits: [HabitItem]
+
     @State private var showingAddSheet = false
     @State private var isMenuOpen = false
+
     @StateObject private var viewModel = InboxViewModel()
+
+    // Morning Briefing State
+
     @State private var expandedTaskId: String? = nil
     @State private var habitToEdit: HabitItem?
+
     // AI States
     @State private var showingAIActions = false
     @State private var showingQuickCapture = false
     @State private var searchText = ""
+
     // Voice Capture State
     @StateObject private var voiceManager = VoiceCaptureManager()
     @State private var isVoiceCapturing = false
     @State private var isPressDown = false
+
     // Calendar Popup States
     @State private var taskToReschedule: AppTask?
     @State private var tempDate: Date = Date()
+
     // List Reorder
     @StateObject private var calendarOrderManager = CalendarOrderManager()
     @State private var isReorderingLists = false
     @State private var reorderableCalendarIds: [String] = []
+
     private let hapticSound = HapticAndSoundManager.shared
+
     @AppStorage("isDarkMode") private var isDarkMode = true
+
     @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .date
     @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
     @AppStorage("archiveSetting") private var archiveSetting: String = "Midnight"
@@ -38,15 +50,19 @@ struct InboxView: View {
     var activeTasks: [AppTask] {
         let cal = Calendar.current
         let now = Date()
-        var tasks = eventKitManager.reminders
-        if archiveSetting == "Midnight" {
-            tasks = tasks.filter { !$0.isCompleted || cal.isDateInToday($0.completionDate ?? Date.distantPast) }
-        } else if archiveSetting == "24 Hours" {
-            tasks = tasks.filter { !$0.isCompleted || now.timeIntervalSince($0.completionDate ?? Date.distantPast) < 86400 }
-        }
         
-        if !searchText.isEmpty {
-            tasks = tasks.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+        let tasks = eventKitManager.reminders.filter { task in
+            if !searchText.isEmpty && !task.title.localizedCaseInsensitiveContains(searchText) {
+                return false
+            }
+
+            if archiveSetting == "Midnight" {
+                return !task.isCompleted || cal.isDateInToday(task.completionDate ?? Date.distantPast)
+            } else if archiveSetting == "24 Hours" {
+                return !task.isCompleted || now.timeIntervalSince(task.completionDate ?? Date.distantPast) < 86400
+            }
+
+            return true
         }
         
         return tasks.sorted { t1, t2 in
@@ -59,6 +75,7 @@ struct InboxView: View {
             return false
         }
     }
+
     var dueHabits: [HabitItem] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -549,6 +566,7 @@ struct InboxView: View {
             }
         }
     }
+
     private var addButton: some View {
         Image(systemName: "plus")
             .font(.system(size: 20, weight: .bold))
@@ -597,9 +615,20 @@ struct InboxView: View {
             )
             .opacity(isMenuOpen ? 0 : 1)
     }
+
+
+
+
+
+
+
+
+
+
     private func moveTask(from source: IndexSet, to destination: Int) {
         // Disabled for EventKit
     }
+
     private func toggleTask(_ task: AppTask) {
         var mutableTask = task
         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
@@ -617,6 +646,7 @@ struct InboxView: View {
             WidgetCenter.shared.reloadAllTimelines()
         }
     }
+
     private func toggleHabit(_ habit: HabitItem) {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -635,6 +665,7 @@ struct InboxView: View {
             try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines()
         }
     }
+
     private func handleTaskSwipe(option: SwipeOption, task: AppTask) {
         switch option {
         case .edit:
@@ -661,6 +692,7 @@ struct InboxView: View {
         case .none: break
         }
     }
+
     private func handleHabitSwipe(option: SwipeOption, habit: HabitItem) {
         switch option {
         case .edit: habitToEdit = habit
@@ -676,6 +708,7 @@ struct InboxView: View {
 class CalendarOrderManager: ObservableObject {
     @AppStorage("calendarOrder") var calendarOrderString: String = ""
     @AppStorage("hiddenCalendars") var hiddenCalendarsString: String = ""
+
     var order: [String] {
         get {
             calendarOrderString.split(separator: ",").map(String.init)
@@ -684,6 +717,7 @@ class CalendarOrderManager: ObservableObject {
             calendarOrderString = newValue.joined(separator: ",")
         }
     }
+
     var hiddenIds: Set<String> {
         get {
             Set(hiddenCalendarsString.split(separator: ",").map(String.init))
@@ -692,6 +726,7 @@ class CalendarOrderManager: ObservableObject {
             hiddenCalendarsString = newValue.joined(separator: ",")
         }
     }
+
     func sort(_ calendars: [EKCalendar]) -> [EKCalendar] {
         let currentOrder = order
         return calendars.sorted { cal1, cal2 in
@@ -703,10 +738,12 @@ class CalendarOrderManager: ObservableObject {
             return idx1 < idx2
         }
     }
+
     func updateOrder(from ids: [String]) {
         order = ids
         objectWillChange.send()
     }
+
     func toggleHidden(_ id: String) {
         var currentHidden = hiddenIds
         if currentHidden.contains(id) {
@@ -717,6 +754,7 @@ class CalendarOrderManager: ObservableObject {
         hiddenIds = currentHidden
         objectWillChange.send()
     }
+
     func isHidden(_ id: String) -> Bool {
         hiddenIds.contains(id)
     }

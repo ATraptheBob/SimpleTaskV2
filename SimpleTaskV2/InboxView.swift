@@ -735,6 +735,7 @@ struct InboxView: View {
                     for label in labels {
                         if var task = pendingDict[label.reminderId] {
                             task.aiImportance = label.importance
+                            // Batched to avoid N+1 query performance bottleneck
                             try? eventKitManager.updateTask(task, commit: false)
                         }
                     }

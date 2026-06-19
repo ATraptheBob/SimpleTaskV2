@@ -788,8 +788,9 @@ struct InboxView: View {
                 await MainActor.run {
                     for task in tasks {
                         let notes = "\(task.reason)\n\n<!-- {\"duration\": \"\(task.durationMinutes)m\"} -->"
-                        try? eventKitManager.addTask(title: task.title, notes: notes)
+                        try? eventKitManager.addTask(title: task.title, notes: notes, commit: false)
                     }
+                    try? eventKitManager.commitChanges()
                     viewModel.isFetchingBriefing = false
                 }
             } catch {

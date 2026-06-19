@@ -145,7 +145,7 @@ class EventKitManager: ObservableObject {
         return reminder
     }
     
-    func addTask(title: String, notes: String? = nil, dueDate: Date? = nil, calendar: EKCalendar? = nil) throws {
+    func addTask(title: String, notes: String? = nil, dueDate: Date? = nil, calendar: EKCalendar? = nil, commit: Bool = true) throws {
         let reminder = EKReminder(eventStore: store)
         reminder.calendar = calendar ?? store.defaultCalendarForNewReminders()
         reminder.title = title
@@ -154,7 +154,7 @@ class EventKitManager: ObservableObject {
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: dueDate)
             reminder.dueDateComponents = components
         }
-        try saveTask(AppTask(reminder: reminder))
+        try saveTask(AppTask(reminder: reminder), commit: commit)
     }
     
     // MARK: - Calendar

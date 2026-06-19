@@ -98,20 +98,23 @@ struct SimpleTaskV2App: App {
         let descriptor = FetchDescriptor<QueuedTaskAction>()
         guard let queuedActions = try? context.fetch(descriptor), !queuedActions.isEmpty else { return }
         
+        // Hoist EventKit reminders into a dictionary for O(1) lookup
+        let remindersDict = Dictionary(uniqueKeysWithValues: EventKitManager.shared.reminders.map { ($0.id, $0) })
+
         for action in queuedActions {
             // Find the task in EventKit
-            if let taskIndex = EventKitManager.shared.reminders.firstIndex(where: { $0.id == action.taskID }) {
-                var task = EventKitManager.shared.reminders[taskIndex]
+            if var task = remindersDict[action.taskID] {
                 task.isCompleted = (action.actionType == "complete")
                 if task.isCompleted {
                     task.completionDate = action.timestamp
                 } else {
                     task.completionDate = nil
                 }
-                try? EventKitManager.shared.updateTask(task)
+                try? EventKitManager.shared.updateTask(task, commit: false)
             }
             context.delete(action)
         }
+        try? EventKitManager.shared.commitChanges()
         try? context.save()
     }
     

@@ -104,7 +104,7 @@ struct TaskRowView: View {
                                     .background(isDarkMode ? Color(white: 0.25) : Color(white: 0.85))
                                     .clipShape(Capsule())
                             }
-                            .buttonStyle(.plain) // FIX: Isolates tap target
+                            .buttonStyle(.plain)
                         }
 
                         if isEditingNotes {

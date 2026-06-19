@@ -9,3 +9,6 @@
 ## 2024-06-19 - Batch EventKit Saves to Optimize Loops
 **Learning:** To prevent N+1 performance bottlenecks when updating multiple EventKit records, avoid calling `store.save(..., commit: true)` within loops.
 **Action:** Use `store.save(..., commit: false)` to batch changes during iteration and call `store.commit()` once after the loop completes to dramatically reduce database I/O.
+## 2024-08-01 - Avoid N+1 Updates in EventKit Loops
+**Learning:** Calling `updateTask(task)` inside iteration loops causes performance bottlenecks due to N+1 database queries/commits.
+**Action:** Use `commit: false` when making updates within loops, and explicitly call `commitChanges()` after the loop to batch database modifications.

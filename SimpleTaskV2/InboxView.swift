@@ -58,15 +58,19 @@ struct InboxView: View {
     var activeTasks: [AppTask] {
         let cal = Calendar.current
         let now = Date()
-        var tasks = eventKitManager.reminders
-        if archiveSetting == "Midnight" {
-            tasks = tasks.filter { !$0.isCompleted || cal.isDateInToday($0.completionDate ?? Date.distantPast) }
-        } else if archiveSetting == "24 Hours" {
-            tasks = tasks.filter { !$0.isCompleted || now.timeIntervalSince($0.completionDate ?? Date.distantPast) < 86400 }
-        }
         
-        if !searchText.isEmpty {
-            tasks = tasks.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+        let tasks = eventKitManager.reminders.filter { task in
+            if !searchText.isEmpty && !task.title.localizedCaseInsensitiveContains(searchText) {
+                return false
+            }
+
+            if archiveSetting == "Midnight" {
+                return !task.isCompleted || cal.isDateInToday(task.completionDate ?? Date.distantPast)
+            } else if archiveSetting == "24 Hours" {
+                return !task.isCompleted || now.timeIntervalSince(task.completionDate ?? Date.distantPast) < 86400
+            }
+
+            return true
         }
         
         return tasks.sorted { t1, t2 in

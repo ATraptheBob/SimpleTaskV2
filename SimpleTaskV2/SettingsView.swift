@@ -20,7 +20,7 @@ struct SettingsView: View {
     @AppStorage("enableHaptics") private var enableHaptics = true
     @AppStorage("enableSounds") private var enableSounds = true
     @AppStorage("useDynamicBackground") private var useDynamicBackground = true
-    @AppStorage("geminiApiKey") private var geminiApiKey: String = ""
+    @State private var geminiApiKey: String = ""
     // Alerts
     @State private var showingEraseConfirmation = false
     
@@ -172,5 +172,11 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .toolbar(.hidden, for: .tabBar)
+        .onAppear {
+            geminiApiKey = KeychainManager.shared.get(key: "geminiApiKey") ?? ""
+        }
+        .onChange(of: geminiApiKey) { _, newValue in
+            KeychainManager.shared.save(key: "geminiApiKey", value: newValue)
+        }
     }
 }

@@ -8,7 +8,9 @@ class GeminiManager: ObservableObject {
     
     @Published var isGenerating: Bool = false
     
-    @AppStorage("geminiApiKey") private var apiKey: String = ""
+    private var apiKey: String {
+        KeychainManager.shared.get(key: "geminiApiKey") ?? ""
+    }
     
     private let models = ["gemini-3.1-flash-lite"]
     private let apiBase = "https://generativelanguage.googleapis.com/v1beta/models"

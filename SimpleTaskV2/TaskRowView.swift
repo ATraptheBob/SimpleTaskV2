@@ -104,7 +104,7 @@ struct TaskRowView: View {
                                     .background(isDarkMode ? Color(white: 0.25) : Color(white: 0.85))
                                     .clipShape(Capsule())
                             }
-                            .buttonStyle(.plain) // FIX: Isolates tap target
+                            .buttonStyle(.plain)
                         }
 
                         if isEditingNotes {
@@ -122,11 +122,16 @@ struct TaskRowView: View {
                                     .padding(.horizontal, 4)
                                     .onTapGesture { withAnimation { isEditingNotes = true } }
                             } else {
-                                // FIX: .init() allows standard URLs to be natively formatted as clickable links!
-                                Text(.init(task.notes))
-                                    .font(.callout)
-                                    .tint(.blue)
-                                    .foregroundColor(isDarkMode ? .white.opacity(0.9) : .black.opacity(0.9))
+                                Group {
+                                    if let attrStr = try? AttributedString(markdown: task.notes) {
+                                        Text(attrStr)
+                                    } else {
+                                        Text(task.notes)
+                                    }
+                                }
+                                .font(.callout)
+                                .tint(.blue)
+                                .foregroundColor(isDarkMode ? .white.opacity(0.9) : .black.opacity(0.9))
                                 .padding(12)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(isDarkMode ? Color.black.opacity(0.2) : Color.white.opacity(0.5))
@@ -148,7 +153,7 @@ struct TaskRowView: View {
                                 .clipShape(Circle())
                                 .accessibilityLabel("Reschedule Task")
                         }
-                        .buttonStyle(.plain) // FIX: Prevents mass-activation
+                        .buttonStyle(.plain)
                     }
                     .padding(.top, 4)
                 }

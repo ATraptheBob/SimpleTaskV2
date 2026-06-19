@@ -13,20 +13,18 @@ struct InboxView: View {
     @State private var showingAddSheet = false
     @State private var isMenuOpen = false
     
+    // View Model
+    @StateObject private var viewModel = InboxViewModel()
+
     // Morning Briefing State
     @State private var showingMorningApproval = false
     @State private var morningBriefing: MorningBriefing? = nil
-    @State private var isFetchingBriefing = false
-    @State private var showingError = false
-    @State private var errorMessage = ""
     
     @State private var expandedTaskId: String? = nil
     @State private var habitToEdit: HabitItem?
     
     // AI States
     @State private var showingAIActions = false
-    @State private var showingEveningApproval = false
-    @State private var eveningBriefing: EveningBriefing?
     @State private var showingQuickCapture = false
     @State private var quickCaptureText = ""
     @State private var searchText = ""
@@ -132,7 +130,7 @@ struct InboxView: View {
                         }
                         .padding(.trailing, 8)
                         
-                        if isFetchingBriefing {
+                        if viewModel.isFetchingBriefing {
                             ProgressView()
                                 .tint(.pink)
                         } else {
@@ -533,11 +531,11 @@ struct InboxView: View {
                 )
             }
             .fullScreenCover(isPresented: Binding(
-                get: { showingEveningApproval && eveningBriefing != nil },
-                set: { if !$0 { showingEveningApproval = false } }
+                get: { viewModel.showingEveningApproval && viewModel.eveningBriefing != nil },
+                set: { if !$0 { viewModel.showingEveningApproval = false } }
             )) {
-                if let briefing = eveningBriefing {
-                    EveningReviewView(isPresented: $showingEveningApproval, briefing: briefing)
+                if let briefing = viewModel.eveningBriefing {
+                    EveningReviewView(isPresented: $viewModel.showingEveningApproval, briefing: briefing)
                 }
             }
             .alert("Quick Capture", isPresented: $showingQuickCapture) {
@@ -552,8 +550,8 @@ struct InboxView: View {
                     MorningApprovalView(briefing: briefing, isPresented: $showingMorningApproval)
                 }
             }
-            .alert(isPresented: $showingError) {
-                Alert(title: Text("AI Error"), message: Text(errorMessage), dismissButton: .default(Text("OK")))
+            .alert(isPresented: $viewModel.showingError) {
+                Alert(title: Text("AI Error"), message: Text(viewModel.errorMessage), dismissButton: .default(Text("OK")))
             }
             .sheet(isPresented: $isReorderingLists) {
                 ReorderListsSheet(
@@ -628,7 +626,7 @@ struct InboxView: View {
         let text = voiceManager.transcribedText
         guard !text.isEmpty, text != "Listening..." else { return }
         
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         isParsingVoiceTask = true
         voiceTaskPlaceholderText = text
         Task {
@@ -657,16 +655,16 @@ struct InboxView: View {
                         
                         try? eventKitManager.saveTask(newTask)
                     }
-                    self.isFetchingBriefing = false
+                    self.viewModel.isFetchingBriefing = false
                     self.isParsingVoiceTask = false
                     self.voiceManager.transcribedText = ""
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
+                    self.viewModel.isFetchingBriefing = false
                     self.isParsingVoiceTask = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    self.viewModel.errorMessage = error.localizedDescription
+                    self.viewModel.showingError = true
                     self.voiceManager.transcribedText = ""
                 }
             }
@@ -675,7 +673,7 @@ struct InboxView: View {
     
     private func fetchMorningBriefing() {
         Task {
-            isFetchingBriefing = true
+            viewModel.isFetchingBriefing = true
             do {
                 var fetchedEmails: [String] = []
                 if GoogleWorkspaceManager.shared.isSignedIn {
@@ -691,46 +689,29 @@ struct InboxView: View {
                 DispatchQueue.main.async {
                     self.morningBriefing = briefing
                     self.showingMorningApproval = true
-                    self.isFetchingBriefing = false
+                    self.viewModel.isFetchingBriefing = false
                 }
             } catch {
                 print("Failed to fetch briefing: \(error)")
                 DispatchQueue.main.async { 
-                    self.isFetchingBriefing = false 
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    self.viewModel.isFetchingBriefing = false
+                    self.viewModel.errorMessage = error.localizedDescription
+                    self.viewModel.showingError = true
                 }
             }
         }
     }
     
     private func fetchEveningBriefing() {
-        isFetchingBriefing = true
-        Task {
-            do {
-                let events = eventKitManager.events.filter { Calendar.current.isDateInToday($0.startDate) }
-                let completed = eventKitManager.reminders.filter { $0.isCompleted && Calendar.current.isDateInToday($0.completionDate ?? Date()) }
-                let pending = eventKitManager.reminders.filter { !$0.isCompleted }
-                
-                let briefing = try await GeminiManager.shared.generateEveningBriefing(events: events, completedReminders: completed.map { $0.reminder }, pendingReminders: pending.map { $0.reminder })
-                
-                await MainActor.run {
-                    self.eveningBriefing = briefing
-                    self.isFetchingBriefing = false
-                    self.showingEveningApproval = true
-                }
-            } catch {
-                await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
-                }
-            }
-        }
+        let events = eventKitManager.events.filter { Calendar.current.isDateInToday($0.startDate) }
+        let completed = eventKitManager.reminders.filter { $0.isCompleted && Calendar.current.isDateInToday($0.completionDate ?? Date()) }
+        let pending = eventKitManager.reminders.filter { !$0.isCompleted }
+
+        viewModel.fetchEveningBriefing(events: events, completed: completed, pending: pending)
     }
     
     private func runLabelImportance() {
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         Task {
             do {
                 let pending = eventKitManager.reminders.filter { !$0.isCompleted }
@@ -744,20 +725,20 @@ struct InboxView: View {
                         }
                     }
                     try? eventKitManager.commitChanges()
-                    self.isFetchingBriefing = false
+                    self.viewModel.isFetchingBriefing = false
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    self.viewModel.isFetchingBriefing = false
+                    self.viewModel.errorMessage = error.localizedDescription
+                    self.viewModel.showingError = true
                 }
             }
         }
     }
     
     private func runPredictDurations() {
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         Task {
             do {
                 let pending = eventKitManager.reminders.filter { !$0.isCompleted && $0.approximateDuration == nil }
@@ -771,13 +752,13 @@ struct InboxView: View {
                         }
                     }
                     try? eventKitManager.commitChanges()
-                    self.isFetchingBriefing = false
+                    self.viewModel.isFetchingBriefing = false
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    self.viewModel.isFetchingBriefing = false
+                    self.viewModel.errorMessage = error.localizedDescription
+                    self.viewModel.showingError = true
                 }
             }
         }
@@ -786,7 +767,7 @@ struct InboxView: View {
     private func runQuickCapture(text: String) {
         guard !text.isEmpty else { return }
         quickCaptureText = ""
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         Task {
             do {
                 let tasks = try await GeminiManager.shared.parseNaturalLanguage(input: text)
@@ -795,20 +776,20 @@ struct InboxView: View {
                         let notes = "\(task.reason)\n\n<!-- {\"duration\": \"\(task.durationMinutes)m\"} -->"
                         try? eventKitManager.addTask(title: task.title, notes: notes)
                     }
-                    self.isFetchingBriefing = false
+                    self.viewModel.isFetchingBriefing = false
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    self.viewModel.isFetchingBriefing = false
+                    self.viewModel.errorMessage = error.localizedDescription
+                    self.viewModel.showingError = true
                 }
             }
         }
     }
     
     private func runPlanMyDay() {
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         Task {
             do {
                 let pending = eventKitManager.reminders.filter { !$0.isCompleted }
@@ -834,25 +815,25 @@ struct InboxView: View {
                         }
                     }
                     try? eventKitManager.commitChanges()
-                    self.isFetchingBriefing = false
+                    self.viewModel.isFetchingBriefing = false
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    self.viewModel.isFetchingBriefing = false
+                    self.viewModel.errorMessage = error.localizedDescription
+                    self.viewModel.showingError = true
                 }
             }
         }
     }
     
     private func runSmartContext() {
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         Task {
             do {
                 let pending = eventKitManager.reminders.filter { !$0.isCompleted && $0.dueDate == nil }
                 guard !pending.isEmpty else {
-                    await MainActor.run { self.isFetchingBriefing = false }
+                    await MainActor.run { self.viewModel.isFetchingBriefing = false }
                     return
                 }
                 
@@ -873,26 +854,26 @@ struct InboxView: View {
                         }
                     }
                     try? eventKitManager.commitChanges()
-                    self.isFetchingBriefing = false
+                    self.viewModel.isFetchingBriefing = false
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    self.viewModel.isFetchingBriefing = false
+                    self.viewModel.errorMessage = error.localizedDescription
+                    self.viewModel.showingError = true
                 }
             }
         }
     }
     
     private func runAutoReschedule() {
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         Task {
             do {
                 let now = Date()
                 let overdue = eventKitManager.reminders.filter { !$0.isCompleted && ($0.dueDate ?? Date.distantFuture) < now }
                 guard !overdue.isEmpty else {
-                    await MainActor.run { self.isFetchingBriefing = false }
+                    await MainActor.run { self.viewModel.isFetchingBriefing = false }
                     return
                 }
                 
@@ -914,13 +895,13 @@ struct InboxView: View {
                         }
                     }
                     try? eventKitManager.commitChanges()
-                    self.isFetchingBriefing = false
+                    self.viewModel.isFetchingBriefing = false
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    self.viewModel.isFetchingBriefing = false
+                    self.viewModel.errorMessage = error.localizedDescription
+                    self.viewModel.showingError = true
                 }
             }
         }

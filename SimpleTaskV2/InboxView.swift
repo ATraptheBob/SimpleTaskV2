@@ -821,12 +821,13 @@ struct InboxView: View {
                                 
                                 if let newDate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: today) {
                                     task.dueDate = newDate
-                                    try? eventKitManager.updateTask(task)
+                                    try? eventKitManager.updateTask(task, commit: false)
                                     NotificationManager.shared.scheduleTaskReminders(task: task)
                                 }
                             }
                         }
                     }
+                    try? eventKitManager.commitChanges()
                     self.isFetchingBriefing = false
                 }
             } catch {
@@ -859,11 +860,12 @@ struct InboxView: View {
                         if var task = pending.first(where: { $0.id == pred.reminderId }) {
                             if let newDate = formatter.date(from: pred.scheduledDateString) {
                                 task.dueDate = newDate
-                                try? eventKitManager.updateTask(task)
+                                try? eventKitManager.updateTask(task, commit: false)
                                 NotificationManager.shared.scheduleTaskReminders(task: task)
                             }
                         }
                     }
+                    try? eventKitManager.commitChanges()
                     self.isFetchingBriefing = false
                 }
             } catch {
@@ -898,11 +900,12 @@ struct InboxView: View {
                         if var task = overdue.first(where: { $0.id == pred.reminderId }) {
                             if let newDate = formatter.date(from: pred.scheduledDateString) {
                                 task.dueDate = newDate
-                                try? eventKitManager.updateTask(task)
+                                try? eventKitManager.updateTask(task, commit: false)
                                 NotificationManager.shared.scheduleTaskReminders(task: task)
                             }
                         }
                     }
+                    try? eventKitManager.commitChanges()
                     self.isFetchingBriefing = false
                 }
             } catch {

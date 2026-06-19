@@ -9,9 +9,6 @@ class GoogleWorkspaceManager: ObservableObject {
     @Published var isSignedIn = false
     @Published var currentUserEmail: String? = nil
     
-    // Placeholder access token for API calls
-    public var accessToken: String? = nil
-    
     init() {}
     
     // MARK: - Authentication
@@ -39,10 +36,9 @@ class GoogleWorkspaceManager: ObservableObject {
         let result = try await GIDSignIn.sharedInstance.signIn(
             withPresenting: presentingVC,
             hint: nil,
-            additionalScopes: ["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/cloud-platform"]
+            additionalScopes: ["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/drive.readonly"]
         )
         
-        self.accessToken = result.user.accessToken.tokenString
         self.currentUserEmail = result.user.profile?.email
         self.isSignedIn = true
         print("Google Sign-In flow completed.")
@@ -52,7 +48,6 @@ class GoogleWorkspaceManager: ObservableObject {
     func restoreSignIn() async {
         do {
             let user = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
-            self.accessToken = user.accessToken.tokenString
             self.currentUserEmail = user.profile?.email
             self.isSignedIn = true
             print("Google Sign-In restored.")
@@ -66,14 +61,24 @@ class GoogleWorkspaceManager: ObservableObject {
         GIDSignIn.sharedInstance.signOut()
         self.isSignedIn = false
         self.currentUserEmail = nil
-        self.accessToken = nil
+    }
+
+    // MARK: - Token Management
+
+    /// Retrieves a valid access token securely from the SDK, refreshing if needed.
+    private func getValidToken() async throws -> String? {
+        guard let user = GIDSignIn.sharedInstance.currentUser else {
+            return nil
+        }
+        try await user.refreshTokensIfNeeded()
+        return user.accessToken.tokenString
     }
     
     // MARK: - Gmail API
     
     /// Fetches recent important or starred emails from the last 24 hours.
     func fetchRecentImportantEmails() async throws -> String {
-        guard let token = accessToken else {
+        guard let token = try await getValidToken() else {
             // Throw error or handle unauthenticated state
             print("No access token for Gmail API.")
             return "[]"
@@ -96,7 +101,7 @@ class GoogleWorkspaceManager: ObservableObject {
     
     /// Fetches recently modified Google Docs
     func fetchRecentDocs() async throws -> String {
-        guard let token = accessToken else {
+        guard let token = try await getValidToken() else {
             print("No access token for Drive API.")
             return "[]"
         }

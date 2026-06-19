@@ -3,6 +3,13 @@ import Speech
 import AVFoundation
 internal import Combine
 
+protocol AVAudioSessionProtocol {
+    func setCategory(_ category: AVAudioSession.Category, mode: AVAudioSession.Mode, options: AVAudioSession.CategoryOptions) throws
+    func setActive(_ active: Bool, options: AVAudioSession.SetActiveOptions) throws
+}
+
+extension AVAudioSession: AVAudioSessionProtocol {}
+
 class VoiceCaptureManager: NSObject, ObservableObject {
     @Published var isRecording = false
     @Published var transcribedText = ""
@@ -11,7 +18,8 @@ class VoiceCaptureManager: NSObject, ObservableObject {
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
-    private let audioEngine = AVAudioEngine()
+    internal var audioEngine = AVAudioEngine()
+    internal var audioSessionProvider: AVAudioSessionProtocol = AVAudioSession.sharedInstance()
     
     private var displayLink: CADisplayLink?
     
@@ -42,7 +50,7 @@ class VoiceCaptureManager: NSObject, ObservableObject {
             self.recognitionTask = nil
         }
         
-        let audioSession = AVAudioSession.sharedInstance()
+        let audioSession = audioSessionProvider
         try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
         try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         

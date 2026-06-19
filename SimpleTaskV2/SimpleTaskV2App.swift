@@ -125,14 +125,15 @@ struct SimpleTaskV2App: App {
         }
 
         let calendar = Calendar.current
+        let now = Date()
         _ = allHabits.filter { habit in
             let freq = habit.frequency ?? .daily
             if freq == .none { return true }
             guard let latestCompletion = habit.completionDates.max() else { return true }
             switch freq {
             case .daily: return !calendar.isDateInToday(latestCompletion)
-            case .weekly: return !calendar.isDate(latestCompletion, equalTo: Date(), toGranularity: .weekOfYear)
-            case .monthly: return !calendar.isDate(latestCompletion, equalTo: Date(), toGranularity: .month)
+            case .weekly: return !calendar.isDate(latestCompletion, equalTo: now, toGranularity: .weekOfYear)
+            case .monthly: return !calendar.isDate(latestCompletion, equalTo: now, toGranularity: .month)
             case .none: return true
             }
         }

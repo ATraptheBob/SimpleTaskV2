@@ -12,7 +12,7 @@ struct AIActionsSheet: View {
     var onAutoReschedule: () -> Void
     
     @AppStorage("isDarkMode") private var isDarkMode = true
-    @AppStorage("geminiApiKey") private var apiKey: String = ""
+    @State private var apiKey: String = KeychainManager.shared.getApiKey()
     
     var body: some View {
         ZStack {
@@ -136,6 +136,7 @@ struct AIActionsSheet: View {
         }
         .presentationDetents([.fraction(0.85)])
         .presentationDragIndicator(.hidden)
+        .onAppear { apiKey = KeychainManager.shared.getApiKey() }
     }
     
     private func dismissAndRun(_ action: @escaping () -> Void) {

@@ -20,7 +20,7 @@ struct SettingsView: View {
     @AppStorage("enableHaptics") private var enableHaptics = true
     @AppStorage("enableSounds") private var enableSounds = true
     @AppStorage("useDynamicBackground") private var useDynamicBackground = true
-    @AppStorage("geminiApiKey") private var geminiApiKey: String = ""
+    @State private var geminiApiKey: String = KeychainManager.shared.getApiKey()
     // Alerts
     @State private var showingEraseConfirmation = false
     
@@ -164,6 +164,7 @@ struct SettingsView: View {
                         Image(systemName: "sparkles").foregroundColor(.pink)
                         SecureField("Gemini API Key", text: $geminiApiKey)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .onChange(of: geminiApiKey) { _, newValue in KeychainManager.shared.saveApiKey(newValue) }
                     }
                 }
                 .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)

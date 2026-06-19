@@ -16,9 +16,6 @@ struct InboxView: View {
     // Morning Briefing State
     @State private var showingMorningApproval = false
     @State private var morningBriefing: MorningBriefing? = nil
-    @State private var isFetchingBriefing = false
-    @State private var showingError = false
-    @State private var errorMessage = ""
     
     @State private var expandedTaskId: String? = nil
     @State private var habitToEdit: HabitItem?
@@ -132,7 +129,7 @@ struct InboxView: View {
                         }
                         .padding(.trailing, 8)
                         
-                        if isFetchingBriefing {
+                        if viewModel.isFetchingBriefing {
                             ProgressView()
                                 .tint(.pink)
                         } else {
@@ -552,8 +549,8 @@ struct InboxView: View {
                     MorningApprovalView(briefing: briefing, isPresented: $showingMorningApproval)
                 }
             }
-            .alert(isPresented: $showingError) {
-                Alert(title: Text("AI Error"), message: Text(errorMessage), dismissButton: .default(Text("OK")))
+            .alert(isPresented: $viewModel.showingError) {
+                Alert(title: Text("AI Error"), message: Text(viewModel.errorMessage), dismissButton: .default(Text("OK")))
             }
             .sheet(isPresented: $isReorderingLists) {
                 ReorderListsSheet(
@@ -628,7 +625,7 @@ struct InboxView: View {
         let text = voiceManager.transcribedText
         guard !text.isEmpty, text != "Listening..." else { return }
         
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         isParsingVoiceTask = true
         voiceTaskPlaceholderText = text
         Task {
@@ -657,16 +654,16 @@ struct InboxView: View {
                         
                         try? eventKitManager.saveTask(newTask)
                     }
-                    self.isFetchingBriefing = false
+                    viewModel.isFetchingBriefing = false
                     self.isParsingVoiceTask = false
                     self.voiceManager.transcribedText = ""
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
+                    viewModel.isFetchingBriefing = false
                     self.isParsingVoiceTask = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    viewModel.errorMessage = error.localizedDescription
+                    viewModel.showingError = true
                     self.voiceManager.transcribedText = ""
                 }
             }
@@ -675,7 +672,7 @@ struct InboxView: View {
     
     private func fetchMorningBriefing() {
         Task {
-            isFetchingBriefing = true
+            viewModel.isFetchingBriefing = true
             do {
                 var fetchedEmails: [String] = []
                 if GoogleWorkspaceManager.shared.isSignedIn {
@@ -691,14 +688,14 @@ struct InboxView: View {
                 DispatchQueue.main.async {
                     self.morningBriefing = briefing
                     self.showingMorningApproval = true
-                    self.isFetchingBriefing = false
+                    viewModel.isFetchingBriefing = false
                 }
             } catch {
                 print("Failed to fetch briefing: \(error)")
                 DispatchQueue.main.async { 
-                    self.isFetchingBriefing = false 
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    viewModel.isFetchingBriefing = false
+                    viewModel.errorMessage = error.localizedDescription
+                    viewModel.showingError = true
                 }
             }
         }
@@ -730,7 +727,7 @@ struct InboxView: View {
     }
     
     private func runLabelImportance() {
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         Task {
             do {
                 let pending = eventKitManager.reminders.filter { !$0.isCompleted }
@@ -744,20 +741,20 @@ struct InboxView: View {
                         }
                     }
                     try? eventKitManager.commitChanges()
-                    self.isFetchingBriefing = false
+                    viewModel.isFetchingBriefing = false
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    viewModel.isFetchingBriefing = false
+                    viewModel.errorMessage = error.localizedDescription
+                    viewModel.showingError = true
                 }
             }
         }
     }
     
     private func runPredictDurations() {
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         Task {
             do {
                 let pending = eventKitManager.reminders.filter { !$0.isCompleted && $0.approximateDuration == nil }
@@ -771,13 +768,13 @@ struct InboxView: View {
                         }
                     }
                     try? eventKitManager.commitChanges()
-                    self.isFetchingBriefing = false
+                    viewModel.isFetchingBriefing = false
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    viewModel.isFetchingBriefing = false
+                    viewModel.errorMessage = error.localizedDescription
+                    viewModel.showingError = true
                 }
             }
         }
@@ -786,7 +783,7 @@ struct InboxView: View {
     private func runQuickCapture(text: String) {
         guard !text.isEmpty else { return }
         quickCaptureText = ""
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         Task {
             do {
                 let tasks = try await GeminiManager.shared.parseNaturalLanguage(input: text)
@@ -795,20 +792,20 @@ struct InboxView: View {
                         let notes = "\(task.reason)\n\n<!-- {\"duration\": \"\(task.durationMinutes)m\"} -->"
                         try? eventKitManager.addTask(title: task.title, notes: notes)
                     }
-                    self.isFetchingBriefing = false
+                    viewModel.isFetchingBriefing = false
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    viewModel.isFetchingBriefing = false
+                    viewModel.errorMessage = error.localizedDescription
+                    viewModel.showingError = true
                 }
             }
         }
     }
     
     private func runPlanMyDay() {
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         Task {
             do {
                 let pending = eventKitManager.reminders.filter { !$0.isCompleted }
@@ -834,25 +831,25 @@ struct InboxView: View {
                         }
                     }
                     try? eventKitManager.commitChanges()
-                    self.isFetchingBriefing = false
+                    viewModel.isFetchingBriefing = false
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    viewModel.isFetchingBriefing = false
+                    viewModel.errorMessage = error.localizedDescription
+                    viewModel.showingError = true
                 }
             }
         }
     }
     
     private func runSmartContext() {
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         Task {
             do {
                 let pending = eventKitManager.reminders.filter { !$0.isCompleted && $0.dueDate == nil }
                 guard !pending.isEmpty else {
-                    await MainActor.run { self.isFetchingBriefing = false }
+                    await MainActor.run { viewModel.isFetchingBriefing = false }
                     return
                 }
                 
@@ -873,26 +870,26 @@ struct InboxView: View {
                         }
                     }
                     try? eventKitManager.commitChanges()
-                    self.isFetchingBriefing = false
+                    viewModel.isFetchingBriefing = false
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    viewModel.isFetchingBriefing = false
+                    viewModel.errorMessage = error.localizedDescription
+                    viewModel.showingError = true
                 }
             }
         }
     }
     
     private func runAutoReschedule() {
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         Task {
             do {
                 let now = Date()
                 let overdue = eventKitManager.reminders.filter { !$0.isCompleted && ($0.dueDate ?? Date.distantFuture) < now }
                 guard !overdue.isEmpty else {
-                    await MainActor.run { self.isFetchingBriefing = false }
+                    await MainActor.run { viewModel.isFetchingBriefing = false }
                     return
                 }
                 
@@ -914,13 +911,13 @@ struct InboxView: View {
                         }
                     }
                     try? eventKitManager.commitChanges()
-                    self.isFetchingBriefing = false
+                    viewModel.isFetchingBriefing = false
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    viewModel.isFetchingBriefing = false
+                    viewModel.errorMessage = error.localizedDescription
+                    viewModel.showingError = true
                 }
             }
         }

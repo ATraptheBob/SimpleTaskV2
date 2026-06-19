@@ -8,6 +8,7 @@ internal import Combine
 struct InboxView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var eventKitManager = EventKitManager.shared
+    @StateObject private var viewModel = InboxViewModel()
     @Query private var allHabits: [HabitItem]
     
     @State private var showingAddSheet = false
@@ -702,25 +703,21 @@ struct InboxView: View {
     }
     
     private func fetchEveningBriefing() {
-        isFetchingBriefing = true
+        viewModel.isFetchingBriefing = true
         Task {
             do {
-                let events = eventKitManager.events.filter { Calendar.current.isDateInToday($0.startDate) }
-                let completed = eventKitManager.reminders.filter { $0.isCompleted && Calendar.current.isDateInToday($0.completionDate ?? Date()) }
-                let pending = eventKitManager.reminders.filter { !$0.isCompleted }
-                
-                let briefing = try await GeminiManager.shared.generateEveningBriefing(events: events, completedReminders: completed.map { $0.reminder }, pendingReminders: pending.map { $0.reminder })
+                let briefing = try await viewModel.fetchEveningBriefing(eventKitManager: eventKitManager)
                 
                 await MainActor.run {
                     self.eveningBriefing = briefing
-                    self.isFetchingBriefing = false
+                    viewModel.isFetchingBriefing = false
                     self.showingEveningApproval = true
                 }
             } catch {
                 await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
+                    viewModel.isFetchingBriefing = false
+                    viewModel.errorMessage = error.localizedDescription
+                    viewModel.showingError = true
                 }
             }
         }
@@ -1055,5 +1052,24 @@ class CalendarOrderManager: ObservableObject {
     
     func isHidden(_ id: String) -> Bool {
         hiddenIds.contains(id)
+    }
+}
+
+@MainActor
+class InboxViewModel: ObservableObject {
+    @Published var isFetchingBriefing = false
+    @Published var showingError = false
+    @Published var errorMessage = ""
+
+    func fetchEveningBriefing(eventKitManager: EventKitManager) async throws -> EveningBriefing {
+        let events = eventKitManager.events.filter { Calendar.current.isDateInToday($0.startDate) }
+        let completed = eventKitManager.reminders.filter { $0.isCompleted && Calendar.current.isDateInToday($0.completionDate ?? Date()) }
+        let pending = eventKitManager.reminders.filter { !$0.isCompleted }
+
+        return try await GeminiManager.shared.generateEveningBriefing(
+            events: events,
+            completedReminders: completed.map { $0.reminder },
+            pendingReminders: pending.map { $0.reminder }
+        )
     }
 }

@@ -9,48 +9,28 @@ struct InboxView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var eventKitManager = EventKitManager.shared
     @Query private var allHabits: [HabitItem]
-    
     @State private var showingAddSheet = false
     @State private var isMenuOpen = false
-    
-    // Morning Briefing State
-    @State private var showingMorningApproval = false
-    @State private var morningBriefing: MorningBriefing? = nil
-    @State private var isFetchingBriefing = false
-    @State private var showingError = false
-    @State private var errorMessage = ""
-    
+    @StateObject private var viewModel = InboxViewModel()
     @State private var expandedTaskId: String? = nil
     @State private var habitToEdit: HabitItem?
-    
     // AI States
     @State private var showingAIActions = false
-    @State private var showingEveningApproval = false
-    @State private var eveningBriefing: EveningBriefing?
     @State private var showingQuickCapture = false
-    @State private var quickCaptureText = ""
     @State private var searchText = ""
-    
     // Voice Capture State
     @StateObject private var voiceManager = VoiceCaptureManager()
     @State private var isVoiceCapturing = false
     @State private var isPressDown = false
-    @State private var isParsingVoiceTask = false
-    @State private var voiceTaskPlaceholderText = ""
-    
     // Calendar Popup States
     @State private var taskToReschedule: AppTask?
     @State private var tempDate: Date = Date()
-    
     // List Reorder
     @StateObject private var calendarOrderManager = CalendarOrderManager()
     @State private var isReorderingLists = false
     @State private var reorderableCalendarIds: [String] = []
-    
     private let hapticSound = HapticAndSoundManager.shared
-    
     @AppStorage("isDarkMode") private var isDarkMode = true
-    
     @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .date
     @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
     @AppStorage("archiveSetting") private var archiveSetting: String = "Midnight"
@@ -79,7 +59,6 @@ struct InboxView: View {
             return false
         }
     }
-    
     var dueHabits: [HabitItem] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -128,7 +107,7 @@ struct InboxView: View {
                         }
                         .padding(.trailing, 8)
                         
-                        if isFetchingBriefing {
+                        if viewModel.isFetchingBriefing {
                             ProgressView()
                                 .tint(.pink)
                         } else {
@@ -199,7 +178,7 @@ struct InboxView: View {
                         Spacer()
                     } else {
                         List {
-                            if isParsingVoiceTask {
+                            if viewModel.isParsingVoiceTask {
                                 Section(header: Text("Processing AI Task").foregroundColor(.pink).bold().padding(.leading, 8)) {
                                     HStack {
                                         Image(systemName: "sparkles")
@@ -207,7 +186,7 @@ struct InboxView: View {
                                             .font(.title2)
                                         
                                         VStack(alignment: .leading, spacing: 2) {
-                                            Text(voiceTaskPlaceholderText)
+                                            Text(viewModel.voiceTaskPlaceholderText)
                                                 .foregroundColor(isDarkMode ? .white : .black)
                                                 .lineLimit(1)
                                                 .font(.body)
@@ -518,38 +497,38 @@ struct InboxView: View {
             .sheet(isPresented: $showingAIActions) {
                 AIActionsSheet(
                     isPresented: $showingAIActions,
-                    onMorningBrief: fetchMorningBriefing,
-                    onEveningBrief: fetchEveningBriefing,
-                    onLabelImportance: runLabelImportance,
-                    onPredictDuration: runPredictDurations,
-                    onPlanMyDay: runPlanMyDay,
+                    onMorningBrief: viewModel.fetchMorningBriefing,
+                    onEveningBrief: viewModel.fetchEveningBriefing,
+                    onLabelImportance: viewModel.runLabelImportance,
+                    onPredictDuration: viewModel.runPredictDurations,
+                    onPlanMyDay: viewModel.runPlanMyDay,
                     onQuickCapture: { showingQuickCapture = true },
-                    onSmartContext: runSmartContext,
-                    onAutoReschedule: runAutoReschedule
+                    onSmartContext: viewModel.runSmartContext,
+                    onAutoReschedule: viewModel.runAutoReschedule
                 )
             }
             .fullScreenCover(isPresented: Binding(
-                get: { showingEveningApproval && eveningBriefing != nil },
-                set: { if !$0 { showingEveningApproval = false } }
+                get: { viewModel.showingEveningApproval && viewModel.eveningBriefing != nil },
+                set: { if !$0 { viewModel.showingEveningApproval = false } }
             )) {
-                if let briefing = eveningBriefing {
-                    EveningReviewView(isPresented: $showingEveningApproval, briefing: briefing)
+                if let briefing = viewModel.eveningBriefing {
+                    EveningReviewView(isPresented: $viewModel.showingEveningApproval, briefing: briefing)
                 }
             }
             .alert("Quick Capture", isPresented: $showingQuickCapture) {
-                TextField("e.g. Call mom at 5pm and buy milk", text: $quickCaptureText)
-                Button("Cancel", role: .cancel) { quickCaptureText = "" }
-                Button("Add") { runQuickCapture(text: quickCaptureText) }
+                TextField("e.g. Call mom at 5pm and buy milk", text: $viewModel.quickCaptureText)
+                Button("Cancel", role: .cancel) { viewModel.quickCaptureText = "" }
+                Button("Add") { viewModel.runQuickCapture(text: viewModel.quickCaptureText) }
             } message: {
                 Text("Type a task or multiple tasks in natural language.")
             }
-            .fullScreenCover(isPresented: $showingMorningApproval) {
-                if let briefing = morningBriefing {
-                    MorningApprovalView(briefing: briefing, isPresented: $showingMorningApproval)
+            .fullScreenCover(isPresented: $viewModel.showingMorningApproval) {
+                if let briefing = viewModel.morningBriefing {
+                    MorningApprovalView(briefing: briefing, isPresented: $viewModel.showingMorningApproval)
                 }
             }
-            .alert(isPresented: $showingError) {
-                Alert(title: Text("AI Error"), message: Text(errorMessage), dismissButton: .default(Text("OK")))
+            .alert(isPresented: $viewModel.showingError) {
+                Alert(title: Text("AI Error"), message: Text(viewModel.errorMessage), dismissButton: .default(Text("OK")))
             }
             .sheet(isPresented: $isReorderingLists) {
                 ReorderListsSheet(
@@ -570,7 +549,6 @@ struct InboxView: View {
             }
         }
     }
-    
     private var addButton: some View {
         Image(systemName: "plus")
             .font(.system(size: 20, weight: .bold))
@@ -609,7 +587,7 @@ struct InboxView: View {
                             HapticAndSoundManager.shared.triggerHapticSuccess()
                             
                             if !voiceManager.transcribedText.isEmpty && voiceManager.transcribedText != "Listening..." {
-                                processVoiceCapture()
+                                viewModel.processVoiceCapture(text: voiceManager.transcribedText, voiceManager: voiceManager)
                             }
                         } else {
                             HapticAndSoundManager.shared.triggerHapticSelection()
@@ -619,306 +597,9 @@ struct InboxView: View {
             )
             .opacity(isMenuOpen ? 0 : 1)
     }
-    
-    private func processVoiceCapture() {
-        let text = voiceManager.transcribedText
-        guard !text.isEmpty, text != "Listening..." else { return }
-        
-        isFetchingBriefing = true
-        isParsingVoiceTask = true
-        voiceTaskPlaceholderText = text
-        Task {
-            do {
-                let parsedTasks = try await GeminiManager.shared.parseVoiceTasks(transcription: text)
-                await MainActor.run {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd HH:mm"
-                    
-                    for parsed in parsedTasks {
-                        let reminder = eventKitManager.createNewReminder()
-                        reminder.title = parsed.title
-                        
-                        if let notes = parsed.notes {
-                            reminder.notes = notes
-                        }
-                        
-                        var newTask = AppTask(reminder: reminder)
-                        if let dateStr = parsed.dueDateString, let date = formatter.date(from: dateStr) {
-                            newTask.dueDate = date
-                        }
-                        
-                        if parsed.isImportant {
-                            reminder.priority = 1
-                        }
-                        
-                        try? eventKitManager.saveTask(newTask)
-                    }
-                    self.isFetchingBriefing = false
-                    self.isParsingVoiceTask = false
-                    self.voiceManager.transcribedText = ""
-                }
-            } catch {
-                await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.isParsingVoiceTask = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
-                    self.voiceManager.transcribedText = ""
-                }
-            }
-        }
-    }
-    
-    private func fetchMorningBriefing() {
-        Task {
-            isFetchingBriefing = true
-            do {
-                var fetchedEmails: [String] = []
-                if GoogleWorkspaceManager.shared.isSignedIn {
-                    let emailJson = try await GoogleWorkspaceManager.shared.fetchRecentImportantEmails()
-                    fetchedEmails = [emailJson] // Or parse if you implement real Gmail API
-                }
-                
-                let briefing = try await GeminiManager.shared.generateMorningBriefing(
-                    events: eventKitManager.events,
-                    reminders: eventKitManager.reminders.map { $0.reminder },
-                    emails: fetchedEmails
-                )
-                DispatchQueue.main.async {
-                    self.morningBriefing = briefing
-                    self.showingMorningApproval = true
-                    self.isFetchingBriefing = false
-                }
-            } catch {
-                print("Failed to fetch briefing: \(error)")
-                DispatchQueue.main.async { 
-                    self.isFetchingBriefing = false 
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
-                }
-            }
-        }
-    }
-    
-    private func fetchEveningBriefing() {
-        isFetchingBriefing = true
-        Task {
-            do {
-                let events = eventKitManager.events.filter { Calendar.current.isDateInToday($0.startDate) }
-                let completed = eventKitManager.reminders.filter { $0.isCompleted && Calendar.current.isDateInToday($0.completionDate ?? Date()) }
-                let pending = eventKitManager.reminders.filter { !$0.isCompleted }
-                
-                let briefing = try await GeminiManager.shared.generateEveningBriefing(events: events, completedReminders: completed.map { $0.reminder }, pendingReminders: pending.map { $0.reminder })
-                
-                await MainActor.run {
-                    self.eveningBriefing = briefing
-                    self.isFetchingBriefing = false
-                    self.showingEveningApproval = true
-                }
-            } catch {
-                await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
-                }
-            }
-        }
-    }
-    
-    private func runLabelImportance() {
-        isFetchingBriefing = true
-        Task {
-            do {
-                let pending = eventKitManager.reminders.filter { !$0.isCompleted }
-                let labels = try await GeminiManager.shared.labelImportance(reminders: pending.map { $0.reminder })
-                
-                await MainActor.run {
-                    for label in labels {
-                        if var task = pending.first(where: { $0.id == label.reminderId }) {
-                            task.aiImportance = label.importance
-                            try? eventKitManager.updateTask(task)
-                        }
-                    }
-                    self.isFetchingBriefing = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
-                }
-            }
-        }
-    }
-    
-    private func runPredictDurations() {
-        isFetchingBriefing = true
-        Task {
-            do {
-                let pending = eventKitManager.reminders.filter { !$0.isCompleted && $0.approximateDuration == nil }
-                let predictions = try await GeminiManager.shared.predictDurations(reminders: pending.map { $0.reminder })
-                
-                await MainActor.run {
-                    for pred in predictions {
-                        if var task = pending.first(where: { $0.id == pred.reminderId }) {
-                            task.approximateDuration = "\(pred.estimatedMinutes)m"
-                            try? eventKitManager.updateTask(task)
-                        }
-                    }
-                    self.isFetchingBriefing = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
-                }
-            }
-        }
-    }
-    
-    private func runQuickCapture(text: String) {
-        guard !text.isEmpty else { return }
-        quickCaptureText = ""
-        isFetchingBriefing = true
-        Task {
-            do {
-                let tasks = try await GeminiManager.shared.parseNaturalLanguage(input: text)
-                await MainActor.run {
-                    for task in tasks {
-                        let notes = "\(task.reason)\n\n<!-- {\"duration\": \"\(task.durationMinutes)m\"} -->"
-                        try? eventKitManager.addTask(title: task.title, notes: notes)
-                    }
-                    self.isFetchingBriefing = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
-                }
-            }
-        }
-    }
-    
-    private func runPlanMyDay() {
-        isFetchingBriefing = true
-        Task {
-            do {
-                let pending = eventKitManager.reminders.filter { !$0.isCompleted }
-                let schedule = try await GeminiManager.shared.planMyDay(reminders: pending.map { $0.reminder })
-                
-                await MainActor.run {
-                    let calendar = Calendar.current
-                    let today = Date()
-                    
-                    for pred in schedule {
-                        if var task = pending.first(where: { $0.id == pred.reminderId }) {
-                            let timeParts = pred.scheduledTime.split(separator: ":")
-                            if timeParts.count == 2,
-                               let hour = Int(timeParts[0]),
-                               let minute = Int(timeParts[1]) {
-                                
-                                if let newDate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: today) {
-                                    task.dueDate = newDate
-                                    try? eventKitManager.updateTask(task)
-                                    NotificationManager.shared.scheduleTaskReminders(task: task)
-                                }
-                            }
-                        }
-                    }
-                    self.isFetchingBriefing = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
-                }
-            }
-        }
-    }
-    
-    private func runSmartContext() {
-        isFetchingBriefing = true
-        Task {
-            do {
-                let pending = eventKitManager.reminders.filter { !$0.isCompleted && $0.dueDate == nil }
-                guard !pending.isEmpty else {
-                    await MainActor.run { self.isFetchingBriefing = false }
-                    return
-                }
-                
-                let schedule = try await GeminiManager.shared.smartContextReminders(reminders: pending.map { $0.reminder })
-                
-                await MainActor.run {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd HH:mm"
-                    
-                    for pred in schedule {
-                        if var task = pending.first(where: { $0.id == pred.reminderId }) {
-                            if let newDate = formatter.date(from: pred.scheduledDateString) {
-                                task.dueDate = newDate
-                                try? eventKitManager.updateTask(task)
-                                NotificationManager.shared.scheduleTaskReminders(task: task)
-                            }
-                        }
-                    }
-                    self.isFetchingBriefing = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
-                }
-            }
-        }
-    }
-    
-    private func runAutoReschedule() {
-        isFetchingBriefing = true
-        Task {
-            do {
-                let now = Date()
-                let overdue = eventKitManager.reminders.filter { !$0.isCompleted && ($0.dueDate ?? Date.distantFuture) < now }
-                guard !overdue.isEmpty else {
-                    await MainActor.run { self.isFetchingBriefing = false }
-                    return
-                }
-                
-                let events = eventKitManager.events.filter { Calendar.current.isDateInToday($0.startDate) }
-                let schedule = try await GeminiManager.shared.autoRescheduleOverdue(overdueReminders: overdue.map { $0.reminder }, events: events)
-                
-                await MainActor.run {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy-MM-dd HH:mm"
-                    
-                    for pred in schedule {
-                        if var task = overdue.first(where: { $0.id == pred.reminderId }) {
-                            if let newDate = formatter.date(from: pred.scheduledDateString) {
-                                task.dueDate = newDate
-                                try? eventKitManager.updateTask(task)
-                                NotificationManager.shared.scheduleTaskReminders(task: task)
-                            }
-                        }
-                    }
-                    self.isFetchingBriefing = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.isFetchingBriefing = false
-                    self.errorMessage = error.localizedDescription
-                    self.showingError = true
-                }
-            }
-        }
-    }
-    
     private func moveTask(from source: IndexSet, to destination: Int) {
         // Disabled for EventKit
     }
-    
     private func toggleTask(_ task: AppTask) {
         var mutableTask = task
         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
@@ -936,7 +617,6 @@ struct InboxView: View {
             WidgetCenter.shared.reloadAllTimelines()
         }
     }
-    
     private func toggleHabit(_ habit: HabitItem) {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -955,7 +635,6 @@ struct InboxView: View {
             try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines()
         }
     }
-    
     private func handleTaskSwipe(option: SwipeOption, task: AppTask) {
         switch option {
         case .edit:
@@ -982,7 +661,6 @@ struct InboxView: View {
         case .none: break
         }
     }
-    
     private func handleHabitSwipe(option: SwipeOption, habit: HabitItem) {
         switch option {
         case .edit: habitToEdit = habit
@@ -998,7 +676,6 @@ struct InboxView: View {
 class CalendarOrderManager: ObservableObject {
     @AppStorage("calendarOrder") var calendarOrderString: String = ""
     @AppStorage("hiddenCalendars") var hiddenCalendarsString: String = ""
-    
     var order: [String] {
         get {
             calendarOrderString.split(separator: ",").map(String.init)
@@ -1007,7 +684,6 @@ class CalendarOrderManager: ObservableObject {
             calendarOrderString = newValue.joined(separator: ",")
         }
     }
-    
     var hiddenIds: Set<String> {
         get {
             Set(hiddenCalendarsString.split(separator: ",").map(String.init))
@@ -1016,7 +692,6 @@ class CalendarOrderManager: ObservableObject {
             hiddenCalendarsString = newValue.joined(separator: ",")
         }
     }
-    
     func sort(_ calendars: [EKCalendar]) -> [EKCalendar] {
         let currentOrder = order
         return calendars.sorted { cal1, cal2 in
@@ -1028,12 +703,10 @@ class CalendarOrderManager: ObservableObject {
             return idx1 < idx2
         }
     }
-    
     func updateOrder(from ids: [String]) {
         order = ids
         objectWillChange.send()
     }
-    
     func toggleHidden(_ id: String) {
         var currentHidden = hiddenIds
         if currentHidden.contains(id) {
@@ -1044,7 +717,6 @@ class CalendarOrderManager: ObservableObject {
         hiddenIds = currentHidden
         objectWillChange.send()
     }
-    
     func isHidden(_ id: String) -> Bool {
         hiddenIds.contains(id)
     }

@@ -21,7 +21,7 @@ struct SettingsView: View {
     @AppStorage("enableSounds") private var enableSounds = true
     @AppStorage("useDynamicBackground") private var useDynamicBackground = true
     @State private var geminiApiKey: String = KeychainManager.shared.getApiKey()
-    // Alerts
+    // Alert Settings
     @State private var showingEraseConfirmation = false
     
     // Sync

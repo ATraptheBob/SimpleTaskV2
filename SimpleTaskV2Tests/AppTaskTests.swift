@@ -39,4 +39,37 @@ final class AppTaskTests: XCTestCase {
         XCTAssertNil(appTask.approximateDuration)
         XCTAssertEqual(appTask.reminder.notes, "Here are some notes")
     }
+
+    func testIsUrgent() {
+        let reminder = EKReminder(eventStore: eventStore)
+        var appTask = AppTask(reminder: reminder)
+
+        // Test getter
+        reminder.priority = 1
+        XCTAssertTrue(appTask.isUrgent)
+
+        reminder.priority = 4
+        XCTAssertTrue(appTask.isUrgent)
+
+        reminder.priority = 5
+        XCTAssertFalse(appTask.isUrgent)
+
+        reminder.priority = 0 // None
+        XCTAssertFalse(appTask.isUrgent)
+
+        // Test setter to true
+        reminder.priority = 5
+        appTask.isUrgent = true
+        XCTAssertEqual(reminder.priority, 1)
+
+        // Test setter to false (priority < 5)
+        reminder.priority = 2
+        appTask.isUrgent = false
+        XCTAssertEqual(reminder.priority, 5)
+
+        // Test setter to false (priority >= 5)
+        reminder.priority = 7
+        appTask.isUrgent = false
+        XCTAssertEqual(reminder.priority, 7)
+    }
 }

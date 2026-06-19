@@ -761,6 +761,7 @@ struct InboxView: View {
                     for pred in predictions {
                         if var task = pending.first(where: { $0.id == pred.reminderId }) {
                             task.approximateDuration = "\(pred.estimatedMinutes)m"
+                            // batch updates to avoid N+1 query
                             try? eventKitManager.updateTask(task, commit: false)
                         }
                     }

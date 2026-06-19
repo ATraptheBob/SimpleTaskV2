@@ -740,9 +740,10 @@ struct InboxView: View {
                     for label in labels {
                         if var task = pending.first(where: { $0.id == label.reminderId }) {
                             task.aiImportance = label.importance
-                            try? eventKitManager.updateTask(task)
+                            try? eventKitManager.updateTask(task, commit: false)
                         }
                     }
+                    try? eventKitManager.commitChanges()
                     self.isFetchingBriefing = false
                 }
             } catch {
@@ -766,9 +767,10 @@ struct InboxView: View {
                     for pred in predictions {
                         if var task = pending.first(where: { $0.id == pred.reminderId }) {
                             task.approximateDuration = "\(pred.estimatedMinutes)m"
-                            try? eventKitManager.updateTask(task)
+                            try? eventKitManager.updateTask(task, commit: false)
                         }
                     }
+                    try? eventKitManager.commitChanges()
                     self.isFetchingBriefing = false
                 }
             } catch {
@@ -904,6 +906,7 @@ struct InboxView: View {
                         if var task = overdue.first(where: { $0.id == pred.reminderId }) {
                             if let newDate = formatter.date(from: pred.scheduledDateString) {
                                 task.dueDate = newDate
+                                // Batched to avoid N+1 query performance bottleneck
                                 try? eventKitManager.updateTask(task, commit: false)
                                 NotificationManager.shared.scheduleTaskReminders(task: task)
                             }

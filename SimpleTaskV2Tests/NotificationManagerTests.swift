@@ -115,4 +115,37 @@ final class NotificationManagerTests: XCTestCase {
 
         XCTAssertNil(request, "Streak rescue should not be scheduled when habit name is nil")
     }
+
+    func testScheduleEveningBriefing_SchedulesNotification() async throws {
+        // Arrange
+        let completedTasks = 5
+        let pendingTasks = 2
+
+        // Act
+        NotificationManager.shared.scheduleEveningBriefing(completedTasks: completedTasks, pendingTasks: pendingTasks)
+
+        // Allow time for center to process
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+
+        // Assert
+        let pendingRequests = await UNUserNotificationCenter.current().pendingNotificationRequests()
+
+        guard let request = pendingRequests.first(where: { $0.identifier == "eveningBriefing" }) else {
+            XCTFail("Evening briefing notification was not scheduled")
+            return
+        }
+
+        XCTAssertEqual(request.content.title, "Evening Review")
+        XCTAssertEqual(request.content.body, "You completed 5 tasks today. You have 2 tasks pending.")
+
+        // Check trigger
+        guard let trigger = request.trigger as? UNCalendarNotificationTrigger else {
+            XCTFail("Trigger is not UNCalendarNotificationTrigger")
+            return
+        }
+
+        XCTAssertEqual(trigger.dateComponents.hour, 20)
+        XCTAssertEqual(trigger.dateComponents.minute, 0)
+        XCTAssertTrue(trigger.repeats)
+    }
 }

@@ -148,7 +148,7 @@ struct TaskRowView: View {
                                 .clipShape(Circle())
                                 .accessibilityLabel("Reschedule Task")
                         }
-                        .buttonStyle(.plain) // FIX: Prevents mass-activation
+                        .buttonStyle(.plain)
                     }
                     .padding(.top, 4)
                 }

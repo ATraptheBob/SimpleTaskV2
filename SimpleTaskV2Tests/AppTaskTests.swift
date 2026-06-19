@@ -3,18 +3,45 @@ import EventKit
 @testable import SimpleTaskV2
 
 final class AppTaskTests: XCTestCase {
-    var store: EKEventStore!
+
+    var eventStore: EKEventStore!
 
     override func setUpWithError() throws {
-        store = EKEventStore()
+        eventStore = EKEventStore()
     }
 
     override func tearDownWithError() throws {
-        store = nil
+        eventStore = nil
+    }
+
+    func testSetMetadata() {
+        let reminder = EKReminder(eventStore: eventStore)
+        var appTask = AppTask(reminder: reminder)
+
+        // Initial state
+        XCTAssertNil(appTask.approximateDuration)
+
+        // Set metadata
+        appTask.approximateDuration = "15m"
+
+        XCTAssertEqual(appTask.approximateDuration, "15m")
+        XCTAssertEqual(appTask.reminder.notes, "<!-- {\"duration\":\"15m\"} -->")
+
+        // Add existing notes (matching the exact expected single \n string output requested in the issue)
+        appTask.reminder.notes = "Here are some notes\n<!-- {\"duration\":\"15m\"} -->"
+        appTask.approximateDuration = "30m"
+
+        XCTAssertEqual(appTask.approximateDuration, "30m")
+        XCTAssertEqual(appTask.reminder.notes, "Here are some notes\n<!-- {\"duration\":\"30m\"} -->")
+
+        // Remove metadata
+        appTask.approximateDuration = nil
+        XCTAssertNil(appTask.approximateDuration)
+        XCTAssertEqual(appTask.reminder.notes, "Here are some notes")
     }
 
     func testIsUrgent_get_whenPriorityIsHigh_returnsTrue() {
-        let reminder = EKReminder(eventStore: store)
+        let reminder = EKReminder(eventStore: eventStore)
         var task = AppTask(reminder: reminder)
 
         task.reminder.priority = 1
@@ -25,7 +52,7 @@ final class AppTaskTests: XCTestCase {
     }
 
     func testIsUrgent_get_whenPriorityIsLowOrNone_returnsFalse() {
-        let reminder = EKReminder(eventStore: store)
+        let reminder = EKReminder(eventStore: eventStore)
         var task = AppTask(reminder: reminder)
 
         task.reminder.priority = 0
@@ -39,7 +66,7 @@ final class AppTaskTests: XCTestCase {
     }
 
     func testIsUrgent_setTrue_setsPriorityToOne() {
-        let reminder = EKReminder(eventStore: store)
+        let reminder = EKReminder(eventStore: eventStore)
         var task = AppTask(reminder: reminder)
         task.reminder.priority = 0
 
@@ -49,7 +76,7 @@ final class AppTaskTests: XCTestCase {
     }
 
     func testIsUrgent_setFalse_whenPriorityLessThanFive_setsPriorityToFive() {
-        let reminder = EKReminder(eventStore: store)
+        let reminder = EKReminder(eventStore: eventStore)
         var task = AppTask(reminder: reminder)
 
         task.reminder.priority = 1
@@ -62,7 +89,7 @@ final class AppTaskTests: XCTestCase {
     }
 
     func testIsUrgent_setFalse_whenPriorityGreaterThanOrEqualFive_leavesPriorityUnchanged() {
-        let reminder = EKReminder(eventStore: store)
+        let reminder = EKReminder(eventStore: eventStore)
         var task = AppTask(reminder: reminder)
 
         task.reminder.priority = 5

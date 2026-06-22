@@ -19,3 +19,7 @@
 ## 2026-06-19 - Safe Dictionary Instantiation **Learning:** When creating dictionaries from arrays using `Dictionary(uniqueKeysWithValues:)`, a runtime crash will occur if duplicate keys exist. **Action:** To safely instantiate a keyed dictionary when duplicates are possible, use `Dictionary(array.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })` to resolve collisions safely.
 ## 2026-06-19 - Prevent Runtime Crashes with Dictionary init **Learning:** When optimizing array lookups using Dictionary initialization in Swift, using  can cause runtime crashes if the source array contains duplicate keys. **Action:** Use  instead to safely handle potential duplicates by keeping the first encountered value.
 ## 2026-06-19 - Prevent Runtime Crashes with Dictionary init **Learning:** When optimizing array lookups using Dictionary initialization in Swift, using `Dictionary(uniqueKeysWithValues:)` can cause runtime crashes if the source array contains duplicate keys. **Action:** Use `Dictionary(array.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })` instead to safely handle potential duplicates by keeping the first encountered value.
+
+## 2024-10-24 - O(N) Calendar.current.isDate in ForEach
+**Learning:** Evaluating Calendar.current.isDate inside a SwiftUI ForEach loop creates an O(N*M) bottleneck.
+**Action:** Hoist Date and Calendar initializations outside the loop and precompute a Set of start-of-day dates for O(1) lookups.

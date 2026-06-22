@@ -31,7 +31,7 @@ struct TimerView: View {
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     // UI Helpers
-    var activeColor: Color { isBreakMode ? .green : .pink }
+    var activeColor: Color { isBreakMode ? AppTheme.matteTeal : AppTheme.accent }
     
     var progress: CGFloat {
         let total = isBreakMode ? (breakDuration * 60) : (sessionLength * 60)
@@ -68,7 +68,7 @@ struct TimerView: View {
                             }
                             .padding(.horizontal, 20)
                             .padding(.vertical, 10)
-                            .background(activeColor.opacity(0.15))
+                            .background(activeColor.opacity(0.12))
                             .foregroundColor(activeColor)
                             .clipShape(Capsule())
                         }
@@ -113,7 +113,7 @@ struct TimerView: View {
                                 .frame(width: 80, height: 80)
                                 .background(activeColor)
                                 .clipShape(Circle())
-                                .shadow(color: activeColor.opacity(0.4), radius: 10, y: 5)
+                                .neutralShadow(radius: 3, y: 2, opacity: 0.10)
                         }
                         .accessibilityLabel(timerRunning ? "Pause Timer" : "Play Timer")
                         
@@ -139,14 +139,7 @@ struct TimerView: View {
                 // ---------------------------------------------------------
                 if isLandscape {
                     ZStack {
-                        Color.black.edgesIgnoringSafeArea(.all) // Dark base
-                        
-                        // Glassy gradient orb background
-                        Circle()
-                            .fill(LinearGradient(gradient: Gradient(colors: [activeColor.opacity(0.8), activeColor.opacity(0.2)]), startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .frame(width: 400, height: 400)
-                            .blur(radius: 80)
-                            .offset(x: -150, y: 100)
+                        Color.black.edgesIgnoringSafeArea(.all)
                         
                         VStack(spacing: 16) {
                             HStack {
@@ -161,7 +154,6 @@ struct TimerView: View {
                             Text(timeString(from: timeRemaining))
                                 .font(.system(size: 140, weight: .bold, design: .rounded))
                                 .foregroundColor(.white)
-                                .shadow(color: activeColor.opacity(0.5), radius: 20, x: 0, y: 10)
                                 .contentTransition(.numericText())
                             
                             // Discreet interactive controls
@@ -170,7 +162,6 @@ struct TimerView: View {
                                     Image(systemName: timerRunning ? "pause.circle.fill" : "play.circle.fill")
                                         .font(.system(size: 50))
                                         .foregroundColor(activeColor)
-                                        .background(Circle().fill(Color.white.opacity(0.1)))
                                 }
                                 .accessibilityLabel(timerRunning ? "Pause Timer" : "Play Timer")
                             }

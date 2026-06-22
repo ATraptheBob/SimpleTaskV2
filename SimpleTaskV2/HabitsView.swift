@@ -41,7 +41,7 @@ struct HabitsView: View {
                         Button(action: { showingAddSheet = true }) {
                             Image(systemName: "plus")
                                 .font(.system(size: 24, weight: .medium))
-                                .foregroundColor(.pink)
+                                .foregroundColor(AppTheme.accent)
                         }
                         .accessibilityLabel("Add Habit")
                     }
@@ -53,17 +53,24 @@ struct HabitsView: View {
                         .padding(.bottom, 8)
                     
                     List {
-                        HabitSection(title: "DAILY", habits: dailyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
-                        HabitSection(title: "WEEKLY", habits: weeklyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
-                        HabitSection(title: "MONTHLY", habits: monthlyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
+                        HabitSection(title: "Daily", habits: dailyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
+                        HabitSection(title: "Weekly", habits: weeklyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
+                        HabitSection(title: "Monthly", habits: monthlyHabits, editAction: { habitToEdit = $0 }, isDarkMode: isDarkMode)
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
                 }
             }
             .navigationBarHidden(true)
-            .sheet(isPresented: $showingAddSheet) { AddHabitView() }
-            .sheet(item: $habitToEdit) { habit in AddHabitView(habitToEdit: habit) }
+            
+            .sheet(isPresented: $showingAddSheet) {
+                AddHabitView()
+                    .presentationBackground(.clear)
+            }
+            .sheet(item: $habitToEdit) { habit in
+                AddHabitView(habitToEdit: habit)
+                    .presentationBackground(.clear)
+            }
         }
     }
 }
@@ -151,14 +158,14 @@ struct HabitDashboardPanel: View {
                 .frame(width: 130)
             
             VStack(alignment: .leading, spacing: 18) {
-                StatRow(icon: "checkmark.seal.fill", color: .pink, title: "MONTH TOTAL", value: "\(stats.total)", isDarkMode: isDarkMode)
-                StatRow(icon: "flame.fill", color: .orange, title: "MONTH STREAK", value: "\(stats.bestStreak)", isDarkMode: isDarkMode)
+                StatRow(icon: "checkmark.seal.fill", color: AppTheme.matteTeal, title: "MONTH TOTAL", value: "\(stats.total)", isDarkMode: isDarkMode)
+                StatRow(icon: "flame.fill", color: AppTheme.matteAmber, title: "MONTH STREAK", value: "\(stats.bestStreak)", isDarkMode: isDarkMode)
                 
                 if selectedMonthIndex == 11 {
                     let today = Calendar.current.startOfDay(for: Date())
                     StatRow(icon: "star.fill", color: .yellow, title: "TODAY", value: "\(currentCompletions[today] ?? 0)", isDarkMode: isDarkMode)
                 } else {
-                    StatRow(icon: "percent", color: .blue, title: "DAILY AVG", value: String(format: "%.0f%%", stats.dailyAvg), isDarkMode: isDarkMode)
+                    StatRow(icon: "percent", color: AppTheme.matteBlue, title: "DAILY AVG", value: String(format: "%.0f%%", stats.dailyAvg), isDarkMode: isDarkMode)
                         .transition(.opacity)
                 }
             }
@@ -278,11 +285,11 @@ struct MonthGrid: View {
     func color(for count: Int, isFuture: Bool) -> Color {
         if isFuture { return isDarkMode ? Color(white: 0.08) : Color(white: 0.96) }
         switch count {
-        case 0: return isDarkMode ? Color(white: 0.15) : Color(white: 0.90)
-        case 1: return Color.orange.opacity(0.4)
-        case 2: return Color.orange.opacity(0.65)
-        case 3: return Color.orange.opacity(0.85)
-        default: return Color.orange.opacity(1.0)
+        case 0: return AppTheme.surface(.tertiary, isDark: isDarkMode)
+        case 1: return AppTheme.matteAmber.opacity(0.4)
+        case 2: return AppTheme.matteAmber.opacity(0.65)
+        case 3: return AppTheme.matteAmber.opacity(0.85)
+        default: return AppTheme.matteAmber.opacity(1.0)
         }
     }
 }
@@ -313,13 +320,22 @@ struct HabitSection: View {
     
     var body: some View {
         if !habits.isEmpty {
-            Section {
+            Section(header: 
+                HStack {
+                    Text(title).font(.system(size: 12, weight: .semibold)).foregroundColor(.gray)
+                    Spacer()
+                }
+                .padding(.leading, 4)
+                .padding(.vertical, 8)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            ) {
                 ForEach(habits) { habit in
                     VStack(spacing: 0) {
                         HStack(spacing: 16) {
                             Button(action: { toggleHabit(habit) }) {
                                 Image(systemName: isCompleted(habit) ? "checkmark.circle.fill" : "circle")
-                                    .foregroundColor(isCompleted(habit) ? .gray : .orange)
+                                    .foregroundColor(isCompleted(habit) ? .gray : AppTheme.matteAmber)
                                     .font(.system(size: 22, weight: .light))
                             }
                             .buttonStyle(.plain)
@@ -340,7 +356,7 @@ struct HabitSection: View {
                                         Text("\(currentStreak(for: habit))").font(.system(size: 14, weight: .bold, design: .rounded))
                                         Image(systemName: "flame.fill").font(.system(size: 12))
                                     }
-                                    .foregroundColor(isCompleted(habit) ? .gray.opacity(0.6) : .orange)
+                                    .foregroundColor(isCompleted(habit) ? .gray.opacity(0.6) : AppTheme.matteAmber)
                                 }
                                 .contentShape(Rectangle())
                             }
@@ -356,7 +372,7 @@ struct HabitSection: View {
                                     let isActive = habit.activeDays.contains(dayInt)
                                     
                                     Circle()
-                                        .fill(isActive ? Color.orange : Color.gray.opacity(0.2))
+                                        .fill(isActive ? AppTheme.matteAmber : AppTheme.surface(.tertiary, isDark: isDarkMode))
                                         .frame(width: 32, height: 32)
                                         .overlay(Text(days[i]).font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(isActive ? .white : (isDarkMode ? .white : .black)))
                                         .onTapGesture {
@@ -398,8 +414,6 @@ struct HabitSection: View {
                         }
                     }
                 }
-            } header: {
-                Text(title).font(.system(size: 12, weight: .semibold)).foregroundColor(.pink.opacity(0.8)).padding(.leading, 4).padding(.top, 16)
             }
         }
     }
@@ -470,6 +484,7 @@ struct HabitSection: View {
                 WidgetCenter.shared.reloadAllTimelines()
             case .toggle: toggleHabit(habit)
             case .date: break
+            case .restore: break
             case .none: break
             }
         }
@@ -494,7 +509,7 @@ struct MiniHeatmapView: View {
                     let isCompleted = habit.completionDates.contains { Calendar.current.isDate($0, inSameDayAs: date) }
                     
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(isCompleted ? Color.orange : (isDarkMode ? Color(white: 0.2) : Color.gray.opacity(0.2)))
+                        .fill(isCompleted ? AppTheme.matteAmber : AppTheme.surface(.tertiary, isDark: isDarkMode))
                         .frame(width: 16, height: 16)
                 }
             }

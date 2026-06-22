@@ -35,7 +35,7 @@ struct SettingsView: View {
                 Section(header: Text("Focus Engine").foregroundColor(.gray)) {
                     Stepper(value: $pomodoroDuration, in: 5...120, step: 5) {
                         HStack {
-                            Image(systemName: "timer").foregroundColor(.pink)
+                            Image(systemName: "timer").foregroundColor(AppTheme.accent)
                             Text("Focus Length")
                             Spacer()
                             Text("\(pomodoroDuration) min").foregroundColor(.gray)
@@ -51,7 +51,7 @@ struct SettingsView: View {
                         }
                     }
                 }
-                .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
+                .listRowBackground(AppTheme.surface(.secondary, isDark: isDarkMode))
                 
                 Section(header: Text("Swipe Actions").foregroundColor(.gray)) {
                     Picker("Swipe Right ➡️", selection: $leftSwipeAction) {
@@ -66,12 +66,12 @@ struct SettingsView: View {
                         }
                     }
                 }
-                .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
+                .listRowBackground(AppTheme.surface(.secondary, isDark: isDarkMode))
                 
                 Section(header: Text("Preferences").foregroundColor(.gray)) {
                     Toggle(isOn: $isDarkMode) {
                         HStack {
-                            Image(systemName: "moon.fill").foregroundColor(.indigo)
+                            Image(systemName: "moon.fill").foregroundColor(AppTheme.matteSlate)
                             Text("Dark Mode")
                         }
                     }
@@ -92,12 +92,12 @@ struct SettingsView: View {
                     
                     Toggle(isOn: $useDynamicBackground) {
                         HStack {
-                            Image(systemName: "sparkles").foregroundColor(.pink)
+                            Image(systemName: "sparkles").foregroundColor(AppTheme.accent)
                             Text("Dynamic Background")
                         }
                     }
                 }
-                .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
+                .listRowBackground(AppTheme.surface(.secondary, isDark: isDarkMode))
                 
                 Section(header: Text("Sync").foregroundColor(.gray)) {
                     Picker(selection: $syncIntervalMinutes) {
@@ -134,7 +134,7 @@ struct SettingsView: View {
                         }
                     }
                 }
-                .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
+                .listRowBackground(AppTheme.surface(.secondary, isDark: isDarkMode))
                 
                 Section(header: Text("Integrations").foregroundColor(.gray)) {
                     HStack {
@@ -161,13 +161,13 @@ struct SettingsView: View {
                     }
                     
                     HStack {
-                        Image(systemName: "sparkles").foregroundColor(.pink)
+                        Image(systemName: "sparkles").foregroundColor(AppTheme.accent)
                         SecureField("Gemini API Key", text: $geminiApiKey)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .onChange(of: geminiApiKey) { _, newValue in KeychainManager.shared.saveApiKey(newValue) }
                     }
                 }
-                .listRowBackground(isDarkMode ? Color(white: 0.1) : Color.white)
+                .listRowBackground(AppTheme.surface(.secondary, isDark: isDarkMode))
             }
             .scrollContentBackground(.hidden)
         }

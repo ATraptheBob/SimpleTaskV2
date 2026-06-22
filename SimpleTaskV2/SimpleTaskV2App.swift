@@ -26,7 +26,7 @@ struct SimpleTaskV2App: App {
     
     init() {
         do {
-            let schema = Schema([HabitItem.self, PomodoroSession.self, QueuedTaskAction.self])
+            let schema = Schema([HabitItem.self, PomodoroSession.self, QueuedTaskAction.self, ArchivedTask.self])
             guard let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2") else {
                 fatalError("Could not find App Group folder.")
             }
@@ -40,12 +40,8 @@ struct SimpleTaskV2App: App {
     
     var body: some Scene {
         WindowGroup {
-            TabView {
-                InboxView().tabItem { Label("Inbox", systemImage: "tray.fill") }
-                LazyView(HabitsView()).tabItem { Label("Habits", systemImage: "flame.fill") }
-                LazyView(TimerView()).tabItem { Label("Focus", systemImage: "timer") }
-            }
-            .tint(.pink)
+            MainTabView()
+                .tint(AppTheme.accent)
             .preferredColorScheme(isDarkMode ? .dark : .light)
             .onOpenURL { url in
                 GIDSignIn.sharedInstance.handle(url)

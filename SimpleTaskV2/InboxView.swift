@@ -5,6 +5,22 @@ import PhotosUI
 import WidgetKit
 internal import Combine
 
+
+
+struct ScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+struct SectionBoundsKey: PreferenceKey {
+    static var defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { $1 })
+    }
+}
+
 struct InboxView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var eventKitManager = EventKitManager.shared
@@ -28,6 +44,8 @@ struct InboxView: View {
     @State private var showingQuickCapture = false
     @State private var quickCaptureText = ""
     @State private var searchText = ""
+    @State private var showSearchBox = false
+    @FocusState private var isSearchFocused: Bool
     
     // Voice Capture State
     @StateObject private var voiceManager = VoiceCaptureManager()
@@ -45,6 +63,16 @@ struct InboxView: View {
     @State private var isReorderingLists = false
     @State private var reorderableCalendarIds: [String] = []
     
+    
+    // Magic Add Button States
+    @State private var dragOffset: CGSize = .zero
+    @State private var isDraggingToAdd = false
+    @State private var targetCalendarId: String? = nil
+    @State private var sectionBounds: [String: CGRect] = [:]
+    @State private var isScrollingUp = false
+    @State private var isScrollingDown = false
+    @State private var droppedCalendarId: String? = nil
+
     private let hapticSound = HapticAndSoundManager.shared
     
     @AppStorage("isDarkMode") private var isDarkMode = true
@@ -95,6 +123,88 @@ struct InboxView: View {
         }
     }
 
+    private func binding(for task: AppTask) -> Binding<AppTask> {
+        Binding(
+            get: { task },
+            set: { updatedTask in
+                if let index = eventKitManager.reminders.firstIndex(where: { $0.id == updatedTask.id }) {
+                    eventKitManager.reminders[index] = updatedTask
+                }
+            }
+        )
+    }
+    @ViewBuilder
+    private func searchOverlay() -> some View {
+        ZStack(alignment: .top) {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        showSearchBox = false
+                        searchText = ""
+                        isSearchFocused = false
+                    }
+                }
+                
+            VStack(spacing: 0) {
+                HStack {
+                    Image(systemName: "magnifyingglass").foregroundColor(.gray)
+                    TextField("Search tasks...", text: $searchText)
+                        .focused($isSearchFocused)
+                        .foregroundColor(isDarkMode ? .white : .black)
+                        
+                    if !searchText.isEmpty {
+                        Button(action: { searchText = "" }) {
+                            Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
+                        }
+                    }
+                    
+                    Button("Cancel") {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            showSearchBox = false
+                            searchText = ""
+                            isSearchFocused = false
+                        }
+                    }
+                    .foregroundColor(AppTheme.accent)
+                    .padding(.leading, 8)
+                }
+                .padding(14)
+                .background(AppTheme.surface(.primary, isDark: isDarkMode))
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.radiusMedium, style: .continuous))
+                .neutralShadow(radius: 10, y: 5, opacity: 0.1)
+                .padding(.horizontal, 20)
+                .padding(.top, 60)
+                
+                if !searchText.isEmpty {
+                    List {
+                        let matchingTasks = activeTasks
+                        if matchingTasks.isEmpty {
+                            Text("No tasks found")
+                                .foregroundColor(.gray)
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .padding(.top, 20)
+                        } else {
+                            ForEach(matchingTasks) { task in
+                                taskRow(for: task)
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+                
+                Spacer()
+            }
+        }
+        .zIndex(15)
+        .transition(.opacity)
+    }
+
     var body: some View {
         // PERFORMANCE OPTIMIZATION:
         // `activeTasks` (O(N log N)) and `dueHabits` (O(N)) are expensive computed properties.
@@ -103,6 +213,8 @@ struct InboxView: View {
         // Impact: Reduces CPU work for sorting/filtering by ~80% per keystroke search.
         let currentActiveTasks = activeTasks
         let currentDueHabits = dueHabits
+        let now = Date()
+        let overdueCount = currentActiveTasks.filter { !$0.isCompleted && ($0.dueDate ?? Date.distantFuture) < now }.count
 
         return NavigationStack {
             ZStack {
@@ -112,244 +224,146 @@ struct InboxView: View {
                 VStack(spacing: 0) {
                     Spacer().frame(height: 60)
                     
-                    HStack {
+                    HStack(spacing: 12) {
                         Text("Inbox")
                             .font(.system(size: 34, weight: .bold, design: .rounded))
                             .foregroundColor(isDarkMode ? .white : .black)
+                        
+                        if overdueCount > 0 {
+                            Button(action: { runAutoReschedule() }) {
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(AppTheme.matteRed)
+                                        .frame(width: 8, height: 8)
+                                    Text("\(overdueCount)")
+                                        .font(.title2.weight(.bold))
+                                        .foregroundColor(AppTheme.matteRed)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        
                         Spacer()
                         
-                        Button(action: {
-                            let calendars = eventKitManager.getCalendars()
-                            let sorted = calendarOrderManager.sort(calendars)
-                            reorderableCalendarIds = sorted.map { $0.calendarIdentifier }
-                            isReorderingLists = true
-                        }) {
-                            Image(systemName: "list.bullet.indent")
-                                .font(.title2)
-                                .foregroundColor(.gray)
+                        if isReorderingLists {
+                            Button("Done") {
+                                withAnimation {
+                                    isReorderingLists = false
+                                }
+                            }
+                            .font(.headline)
+                            .foregroundColor(AppTheme.accent)
                         }
-                        .padding(.trailing, 8)
                         
                         if viewModel.isFetchingBriefing {
                             ProgressView()
-                                .tint(.pink)
+                                .tint(AppTheme.accent)
                         } else {
                             Button(action: { showingAIActions = true }) {
-                                Image(systemName: "sparkles")
-                                    .font(.title)
-                                    .foregroundColor(.pink)
+                                HStack(spacing: 6) {
+                                    Image(systemName: "sparkles")
+                                        .font(.subheadline.weight(.semibold))
+                                    Text("AI Actions")
+                                        .font(.subheadline.weight(.semibold))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(
+                                    LinearGradient(gradient: Gradient(colors: [AppTheme.accent, AppTheme.accent.opacity(0.8)]), startPoint: .topLeading, endPoint: .bottomTrailing)
+                                )
+                                .clipShape(Capsule())
                             }
                         }
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom, 10)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
                     
                     // Search Bar
-                    HStack {
-                        Image(systemName: "magnifyingglass").foregroundColor(.gray)
-                        TextField("Search tasks...", text: $searchText)
-                            .foregroundColor(isDarkMode ? .white : .black)
-                        if !searchText.isEmpty {
-                            Button(action: { searchText = "" }) {
-                                Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
-                            }
-                            .accessibilityLabel("Clear search")
-                        }
-                    }
-                    .padding(10)
-                    .background(isDarkMode ? Color(white: 0.15) : Color(white: 0.95))
-                    .cornerRadius(12)
-                    .padding(.horizontal)
-                    .padding(.bottom, 10)
-                    
-                    if !currentActiveTasks.isEmpty {
-                        let now = Date()
-                        let overdueCount = currentActiveTasks.filter { !$0.isCompleted && ($0.dueDate ?? Date.distantFuture) < now }.count
-                        if overdueCount > 0 {
-                            Button(action: { runAutoReschedule() }) {
-                                HStack {
-                                    Image(systemName: "arrow.uturn.right.circle.fill").foregroundColor(.pink)
-                                    Text("\(overdueCount) Overdue")
-                                        .font(.subheadline.bold())
-                                        .foregroundColor(isDarkMode ? .white : .black)
-                                    Spacer()
-                                    Text("Auto-Reschedule")
-                                        .font(.caption.bold())
-                                        .foregroundColor(.white)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 5)
-                                        .background(Color.pink)
-                                        .cornerRadius(8)
+                    if showSearchBox {
+                        HStack {
+                            Image(systemName: "magnifyingglass").foregroundColor(.gray)
+                            TextField("Search tasks...", text: $searchText)
+                                .focused($isSearchFocused)
+                                .foregroundColor(isDarkMode ? .white : .black)
+                            
+                            if !searchText.isEmpty {
+                                Button(action: { searchText = "" }) {
+                                    Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
                                 }
-                                .padding(12)
-                                .background(isDarkMode ? Color(white: 0.15) : Color(white: 0.95))
-                                .cornerRadius(12)
+                                .accessibilityLabel("Clear search")
                             }
-                            .buttonStyle(.plain)
-                            .padding(.horizontal)
-                            .padding(.bottom, 10)
+                            
+                            Button("Cancel") {
+                                withAnimation(.spring()) {
+                                    showSearchBox = false
+                                    searchText = ""
+                                    isSearchFocused = false
+                                }
+                            }
+                            .foregroundColor(AppTheme.accent)
+                            .padding(.leading, 4)
                         }
+                        .padding(12)
+                        .background(AppTheme.surface(.secondary, isDark: isDarkMode))
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.radiusMedium, style: .continuous))
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 16)
+                        .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity)))
                     }
+                    
                     
                     if currentActiveTasks.isEmpty && currentDueHabits.isEmpty && !isParsingVoiceTask {
                         Spacer()
                         VStack(spacing: 12) {
-                            Image(systemName: "checkmark.seal.fill").font(.system(size: 50)).foregroundColor(.pink.opacity(0.8))
+                            Image(systemName: "checkmark.seal.fill").font(.system(size: 50)).foregroundColor(AppTheme.accent.opacity(0.8))
                             Text("All caught up!").font(.title3.bold()).foregroundColor(isDarkMode ? .white : .black)
                             Text("Enjoy your free time.").foregroundColor(.gray)
                         }
                         Spacer()
                     } else {
                         List {
-                            if isParsingVoiceTask {
-                                Section(header: Text("Processing AI Task").foregroundColor(.pink).bold().padding(.leading, 8)) {
-                                    HStack {
-                                        Image(systemName: "sparkles")
-                                            .foregroundColor(.pink)
-                                            .font(.title2)
-                                        
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(voiceTaskPlaceholderText)
-                                                .foregroundColor(isDarkMode ? .white : .black)
-                                                .lineLimit(1)
-                                                .font(.body)
-                                            Text("Gemini is structuring your task...")
-                                                .font(.caption)
-                                                .foregroundColor(.gray)
-                                        }
-                                        Spacer()
-                                        ProgressView()
-                                            .tint(.pink)
-                                    }
-                                    .padding(.vertical, 8)
-                                    .padding(.horizontal, 16)
-                                    .listRowInsets(EdgeInsets())
-                                    .listRowBackground(Color.clear)
-                                    .listRowSeparator(.hidden)
-                                }
+                            GeometryReader { geo in
+                                Color.clear.preference(
+                                    key: ScrollOffsetKey.self,
+                                    value: geo.frame(in: .named("InboxList")).minY
+                                )
                             }
+                            .frame(height: 0)
+                            .listRowInsets(EdgeInsets())
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                             
-                            if !currentDueHabits.isEmpty {
-                                Section(header: Text("Today's Habits").foregroundColor(.orange).bold().padding(.leading, 8)) {
-                                    ForEach(currentDueHabits) { habit in
-                                        VStack(spacing: 0) {
-                                            HStack {
-                                                let isCompletedToday = habit.completionDates.contains { Calendar.current.isDateInToday($0) }
-                                                Image(systemName: isCompletedToday ? "checkmark.circle.fill" : "circle")
-                                                    .foregroundColor(isCompletedToday ? .orange : .gray)
-                                                    .font(.title2)
-                                                    .contentShape(Circle())
-                                                    .onTapGesture { toggleHabit(habit) }
-                                                
-                                                HStack {
-                                                    Text(habit.title).foregroundColor(isDarkMode ? .white : .black)
-                                                    Spacer()
-                                                    
-                                                    if habit.streak > 0 {
-                                                        HStack(spacing: 4) {
-                                                            Text("\(habit.streak)")
-                                                                .font(.caption)
-                                                                .fontWeight(.bold)
-                                                                .foregroundColor(.orange)
-                                                            Image(systemName: "flame.fill").foregroundColor(.orange).font(.caption)
-                                                        }
-                                                    }
-                                                }
-                                                .contentShape(Rectangle())
-                                                .onTapGesture { habitToEdit = habit }
-                                            }
-                                            .padding(.vertical, 14)
-                                            .padding(.horizontal, 16)
-                                            .customSwipeActions(
-                                                left: leftSwipeAction,
-                                                right: rightSwipeAction,
-                                                onLeft: { handleHabitSwipe(option: leftSwipeAction, habit: habit) },
-                                                onRight: { handleHabitSwipe(option: rightSwipeAction, habit: habit) }
-                                            )
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 4)
-                                            
-                                            Divider().padding(.leading, 50)
-                                        }
-                                        .listRowInsets(EdgeInsets())
-                                        .listRowBackground(Color.clear)
-                                        .listRowSeparator(.hidden)
-                                    }
-                                }
-                            }
+                            voiceTaskProcessingSection()
                             
-                            if !currentActiveTasks.isEmpty {
-                                let groupedTasks = Dictionary(grouping: currentActiveTasks, by: { $0.reminder.calendar })
-                                let allCalendars = groupedTasks.keys.compactMap { $0 }
-                                let sortedCalendars = calendarOrderManager.sort(allCalendars).filter { !calendarOrderManager.isHidden($0.calendarIdentifier) }
-                                
-                                ForEach(sortedCalendars, id: \.calendarIdentifier) { calendar in
-                                    Section(header: 
-                                        Text(calendar.title)
-                                            .foregroundColor(Color(cgColor: calendar.cgColor))
-                                            .bold()
-                                            .padding(.leading, 8)
-                                            .padding(.top, 10)
-                                    ) {
-                                        ForEach(groupedTasks[calendar] ?? []) { task in
-                                            VStack(spacing: 0) {
-                                                let binding = Binding(
-                                                    get: { task },
-                                                    set: { updatedTask in
-                                                        if let index = eventKitManager.reminders.firstIndex(where: { $0.id == updatedTask.id }) {
-                                                            eventKitManager.reminders[index] = updatedTask
-                                                        }
-                                                    }
-                                                )
-                                                
-                                                TaskRowView(
-                                                    task: binding,
-                                                    isExpanded: expandedTaskId == task.id,
-                                                    isDarkMode: isDarkMode,
-                                                    toggleTask: { toggleTask(task) },
-                                                    onToggleExpand: {
-                                                        if expandedTaskId == task.id {
-                                                            expandedTaskId = nil
-                                                        } else {
-                                                            expandedTaskId = task.id
-                                                        }
-                                                    },
-                                                    onOpenCalendar: {
-                                                        tempDate = task.dueDate ?? Date()
-                                                        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                                                            taskToReschedule = task
-                                                        }
-                                                    }
-                                                )
-                                                .customSwipeActions(
-                                                    left: leftSwipeAction,
-                                                    right: rightSwipeAction,
-                                                    onLeft: { handleTaskSwipe(option: leftSwipeAction, task: task) },
-                                                    onRight: { handleTaskSwipe(option: rightSwipeAction, task: task) }
-                                                )
-                                                .padding(.horizontal, 12)
-                                                .padding(.vertical, 4)
-                                                
-                                                Divider().padding(.leading, 50)
-                                            }
-                                            .listRowInsets(EdgeInsets())
-                                            .listRowBackground(Color.clear)
-                                            .listRowSeparator(.hidden)
-                                        }
-                                    }
-                                }
-                            }
+                            habitSections()
+                            
+                            calendarSections()
                             
                             Color.clear
                                 .frame(height: 80)
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                         }
+                        
                         .listStyle(.plain)
-                        .scrollContentBackground(.hidden)
-                        .refreshable {
-                            await eventKitManager.loadData()
+                        .coordinateSpace(name: "InboxList")
+                        .autoScroll(isScrollingUp: isScrollingUp, isScrollingDown: isScrollingDown)
+                        .onPreferenceChange(ScrollOffsetKey.self) { minY in
+                            if minY > 80 && !showSearchBox {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                    showSearchBox = true
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    isSearchFocused = true
+                                }
+                                HapticAndSoundManager.shared.triggerHapticSelection()
+                            }
                         }
+                        .onPreferenceChange(SectionBoundsKey.self) { bounds in
+                            self.sectionBounds = bounds
+                        }
+                        .scrollContentBackground(.hidden)
                     }
                 }
                 
@@ -358,7 +372,7 @@ struct InboxView: View {
                     Color.black.opacity(0.001)
                         .ignoresSafeArea()
                         .onTapGesture {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                                 isMenuOpen = false
                             }
                         }
@@ -377,7 +391,7 @@ struct InboxView: View {
                 
                 // 4. THE MENU LINKS
                 if isMenuOpen {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 0) {
                         Text("Menu")
                             .font(.system(size: 34, weight: .heavy, design: .rounded))
                             .foregroundColor(isDarkMode ? .white : .black)
@@ -385,23 +399,32 @@ struct InboxView: View {
                             .padding(.horizontal, 8)
                         
                         NavigationLink(destination: ArchiveView()) {
-                            MenuLink(title: "Archive", icon: "archivebox", subtitle: "View completed and deleted tasks", badgeCount: nil)
+                            MenuLink(title: "Archive", icon: "archivebox")
                         }
                         .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
+                            
+                        Divider().padding(.horizontal, 16)
                             
                         NavigationLink(destination: StatsView()) {
-                            MenuLink(title: "Analytics", icon: "chart.bar.xaxis", subtitle: "Your productivity trends and habits", badgeCount: nil)
+                            MenuLink(title: "Analytics", icon: "chart.bar.xaxis")
                         }
                         .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
                             
+                        Divider().padding(.horizontal, 16)
+                            
                         NavigationLink(destination: SettingsView()) {
-                            MenuLink(title: "Settings", icon: "gearshape", subtitle: "Preferences and API setup", badgeCount: nil)
+                            MenuLink(title: "Settings", icon: "gearshape")
                         }
                         .simultaneousGesture(TapGesture().onEnded { isMenuOpen = false })
+                        
+                        Divider().padding(.horizontal, 16)
                     }
                     .padding(30)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
+                    .transition(.asymmetric(
+                        insertion: .offset(x: -100).combined(with: .opacity),
+                        removal: .offset(x: -100).combined(with: .opacity)
+                    ))
                     .zIndex(3)
                 }
                 
@@ -412,8 +435,7 @@ struct InboxView: View {
                         
                         Spacer()
                         
-                        addButton
-                            .animation(.easeInOut, value: isMenuOpen)
+
                     }
                     .padding(.horizontal)
                     .padding(.top, 10)
@@ -423,99 +445,47 @@ struct InboxView: View {
                 .zIndex(4)
                 
                 // 6. THE CALENDAR POPUP LAYER
-                if let task = taskToReschedule {
+                calendarPopup()
+                
+                if showingAddSheet {
                     Color.black.opacity(0.4)
                         .ignoresSafeArea()
                         .onTapGesture {
-                            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                                if var t = taskToReschedule {
-                                    t.dueDate = tempDate
-                                    try? eventKitManager.updateTask(t)
-                                    NotificationManager.shared.scheduleTaskReminders(task: t)
-                                    taskToReschedule = nil
-                                }
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.75, blendDuration: 0)) {
+                                showingAddSheet = false
                             }
                         }
-                        .zIndex(5)
+                        .zIndex(9)
+                        .transition(.opacity)
                     
-                    VStack(spacing: 20) {
-                        Text("Due Date")
-                            .font(.title2.bold())
-                            .foregroundColor(isDarkMode ? .white : .black)
-                        
-                        DatePicker("", selection: $tempDate, displayedComponents: .date)
-                            .datePickerStyle(.graphical)
-                            .tint(.purple)
-                            .labelsHidden()
-                        
-                        HStack(spacing: 15) {
-                            Button(action: {
-                                if var t = taskToReschedule {
-                                    withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                                        t.dueDate = nil
-                                        try? eventKitManager.updateTask(t)
-                                        NotificationManager.shared.cancelTaskReminders(taskId: t.id)
-                                        taskToReschedule = nil
-                                    }
-                                }
-                            }) {
-                                Text("Clear Date")
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.red)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 14)
-                                    .background(isDarkMode ? Color(white: 0.15) : Color(white: 0.95))
-                                    .cornerRadius(12)
-                            }
-                            
-                            Button(action: {
-                                if var t = taskToReschedule {
-                                    withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                                        t.dueDate = tempDate
-                                        try? eventKitManager.updateTask(t)
-                                        NotificationManager.shared.scheduleTaskReminders(task: t)
-                                        taskToReschedule = nil
-                                    }
-                                }
-                            }) {
-                                Text("Reschedule")
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 14)
-                                    .background(Color.purple)
-                                    .cornerRadius(12)
-                            }
-                        }
+                    VStack {
+                        AddTaskView(isPresented: $showingAddSheet, initialCalendarIdentifier: droppedCalendarId)
+                            .padding(.top, 60)
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.01, anchor: .top)
+                                            .combined(with: .opacity)
+                                            .combined(with: .offset(y: -150)),
+                                removal: .scale(scale: 0.6, anchor: .top)
+                                            .combined(with: .opacity)
+                                            .combined(with: .offset(y: -50))
+                            ))
+                        Spacer()
                     }
-                    .padding(24)
-                    .background(isDarkMode ? Color(white: 0.1) : Color.white)
-                    .cornerRadius(24)
-                    .shadow(color: .black.opacity(0.3), radius: 30, x: 0, y: 15)
-                    .padding(.horizontal, 30)
-                    .zIndex(6)
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.92).combined(with: .opacity),
-                        removal: .scale(scale: 0.98).combined(with: .opacity)
-                    ))
+                    .zIndex(10)
                 }
                 
-                if isVoiceCapturing {
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                        .zIndex(7)
-                    
-                    VoiceCaptureOverlayView(voiceManager: voiceManager, isDarkMode: isDarkMode)
-                        .zIndex(8)
-                        .transition(.scale(scale: 0.9).combined(with: .opacity))
+                if showSearchBox {
+                    searchOverlay()
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $showingAddSheet) {
-                AddTaskView().presentationDetents([.large])
-            }
-            .sheet(item: $habitToEdit) { habit in
-                AddHabitView(habitToEdit: habit).presentationDetents([.large])
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+                }
             }
             .sheet(isPresented: $showingAIActions) {
                 AIActionsSheet(
@@ -525,10 +495,18 @@ struct InboxView: View {
                     onLabelImportance: runLabelImportance,
                     onPredictDuration: runPredictDurations,
                     onPlanMyDay: runPlanMyDay,
-                    onQuickCapture: { showingQuickCapture = true },
+                    onQuickCapture: {
+                        showingAIActions = false
+                        showingQuickCapture = true
+                    },
                     onSmartContext: runSmartContext,
                     onAutoReschedule: runAutoReschedule
                 )
+                .presentationDetents([.medium, .large])
+                .presentationBackground(.clear)
+            }
+            .sheet(item: $habitToEdit) { habit in
+                AddHabitView(habitToEdit: habit).presentationDetents([.large])
             }
             .fullScreenCover(isPresented: Binding(
                 get: { showingEveningApproval && eveningBriefing != nil },
@@ -553,60 +531,131 @@ struct InboxView: View {
             .alert(isPresented: $viewModel.showingError) {
                 Alert(title: Text("AI Error"), message: Text(viewModel.errorMessage), dismissButton: .default(Text("OK")))
             }
-            .sheet(isPresented: $isReorderingLists) {
-                ReorderListsSheet(
-                    calendarIds: $reorderableCalendarIds,
-                    calendars: eventKitManager.getCalendars(),
-                    isDarkMode: isDarkMode,
-                    onSave: { newOrder in
-                        calendarOrderManager.updateOrder(from: newOrder)
-                    },
-                    isHidden: { id in
-                        calendarOrderManager.isHidden(id)
-                    },
-                    toggleHidden: { id in
-                        calendarOrderManager.toggleHidden(id)
+        .overlay(
+            Group {
+                if !isMenuOpen {
+                    ZStack(alignment: .bottomTrailing) {
+                        addButton
                     }
-                )
-                .presentationDetents([.medium])
-            }
+                    .padding(.trailing, 24)
+                    .padding(.bottom, 40)
+                }
+            },
+            alignment: .bottomTrailing
+        )
+        .overlay(
+            Group {
+                if isVoiceCapturing && !isMenuOpen {
+                    VoiceCaptureOverlayView(voiceManager: voiceManager, isDarkMode: isDarkMode)
+                        .transition(.scale(scale: 0.8, anchor: .center).combined(with: .opacity))
+                        .offset(y: -60) // slightly above center
+                }
+            },
+            alignment: .center
+        )
         }
     }
     
     private var addButton: some View {
-        Image(systemName: "plus")
-            .font(.system(size: 20, weight: .bold))
-            .foregroundColor(.white)
-            .frame(width: 40, height: 40)
-            .background(Color.pink)
+        ZStack {
+            // Background
+            ZStack {
+                AppTheme.accent
+                if isVoiceCapturing {
+                    Color.red
+                }
+            }
             .clipShape(Circle())
-            .shadow(color: isVoiceCapturing ? .pink : .pink.opacity(0.4), radius: isVoiceCapturing ? 15 : 5, x: 0, y: 3)
-            .scaleEffect(isVoiceCapturing ? 1.3 : (isPressDown ? 0.9 : 1.0))
-            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isVoiceCapturing)
-            .animation(.spring(response: 0.2, dampingFraction: 0.7), value: isPressDown)
-            .accessibilityLabel("Add New Task")
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.4)
-                    .onEnded { _ in
+            
+            // Icon
+            Image(systemName: "plus")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(.white)
+                .opacity(isVoiceCapturing ? 0 : 1)
+        }
+        .frame(width: 40, height: 40)
+        .neutralShadow(radius: 4, y: 2, opacity: 0.12)
+        .scaleEffect(isVoiceCapturing ? 35.0 : (isDraggingToAdd ? 4.0 : (isPressDown ? 0.9 : 1.0)))
+        .overlay(
+            Circle()
+                .stroke(isVoiceCapturing ? Color.red.opacity(0.5) : AppTheme.accent.opacity(0.0), lineWidth: isVoiceCapturing ? 0.15 : 0)
+                .scaleEffect(isVoiceCapturing ? 1.15 : 1.0)
+                .opacity(isVoiceCapturing ? 0.6 : 0)
+                .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: isVoiceCapturing)
+        )
+        .animation(.spring(response: 0.5, dampingFraction: 0.7), value: isVoiceCapturing)
+        .animation(.spring(response: 0.4, dampingFraction: 0.6), value: isDraggingToAdd)
+        .animation(.spring(response: 0.2, dampingFraction: 0.7), value: isPressDown)
+        .accessibilityLabel("Add New Task")
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.4)
+                .onEnded { _ in
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                         isVoiceCapturing = true
-                        HapticAndSoundManager.shared.triggerHapticSuccess()
-                        voiceManager.requestAuthorization { granted in
-                            if granted { try? voiceManager.startRecording() }
-                        }
                     }
-            )
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        if !isPressDown {
-                            isPressDown = true
+                    HapticAndSoundManager.shared.triggerHapticSuccess()
+                    voiceManager.requestAuthorization { granted in
+                        if granted { _ = try? voiceManager.startRecording() }
+                    }
+                }
+        )
+        .offset(dragOffset)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                .onChanged { value in
+                    if !isPressDown {
+                        isPressDown = true
+
                             HapticAndSoundManager.shared.triggerHapticSelection()
+                        }
+                        
+                        if !isVoiceCapturing {
+                            let dragThreshold: CGFloat = 10
+                            let translation = CGSize(width: value.translation.width, height: value.translation.height)
+                            
+                            if abs(translation.width) > dragThreshold || abs(translation.height) > dragThreshold || isDraggingToAdd {
+                                isDraggingToAdd = true
+                                dragOffset = translation
+                                
+                                // Check bounds to highlight list
+                                let dragY = value.location.y
+                                var newTarget: String? = nil
+                                for (calId, bounds) in sectionBounds {
+                                    if dragY >= bounds.minY && dragY <= bounds.maxY {
+                                        newTarget = calId
+                                        break
+                                    }
+                                }
+                                
+                                if targetCalendarId != newTarget {
+                                    targetCalendarId = newTarget
+                                    HapticAndSoundManager.shared.triggerHapticSelection()
+                                }
+                                
+                                // Auto-scroll logic
+                                let screenHeight = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800
+                                if dragY < screenHeight * 0.2 {
+                                    isScrollingUp = true
+                                    isScrollingDown = false
+                                } else if dragY > screenHeight * 0.8 {
+                                    isScrollingUp = false
+                                    isScrollingDown = true
+                                } else {
+                                    isScrollingUp = false
+                                    isScrollingDown = false
+                                }
+                            }
                         }
                     }
                     .onEnded { _ in
                         isPressDown = false
+                        isScrollingUp = false
+                        isScrollingDown = false
+                        
                         if isVoiceCapturing {
-                            isVoiceCapturing = false
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                                isVoiceCapturing = false
+                            }
                             voiceManager.stopRecording()
                             HapticAndSoundManager.shared.triggerHapticSuccess()
                             
@@ -615,11 +664,335 @@ struct InboxView: View {
                             }
                         } else {
                             HapticAndSoundManager.shared.triggerHapticSelection()
-                            showingAddSheet = true
+                            
+                            let targetId = targetCalendarId
+                            droppedCalendarId = targetId
+                            
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.75, blendDuration: 0)) {
+                                dragOffset = .zero
+                                isDraggingToAdd = false
+                                targetCalendarId = nil
+                            }
+                            
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.75, blendDuration: 0)) {
+                                showingAddSheet = true
+                            }
                         }
                     }
             )
             .opacity(isMenuOpen ? 0 : 1)
+    }
+    
+    @ViewBuilder
+    private func calendarPopup() -> some View {
+        if taskToReschedule != nil {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                        if var t = taskToReschedule {
+                            t.dueDate = tempDate
+                            try? eventKitManager.updateTask(t)
+                            NotificationManager.shared.scheduleTaskReminders(task: t)
+                            taskToReschedule = nil
+                        }
+                    }
+                }
+                .zIndex(5)
+            
+            VStack(spacing: 20) {
+                Text("Due Date")
+                    .font(.title3.weight(.semibold))
+                    .font(.title2.bold())
+                    .foregroundColor(isDarkMode ? .white : .black)
+                
+                DatePicker("", selection: $tempDate, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .tint(AppTheme.matteSlate)
+                    .labelsHidden()
+                
+                HStack(spacing: 15) {
+                    Button(action: {
+                        if var t = taskToReschedule {
+                            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                t.dueDate = nil
+                                try? eventKitManager.updateTask(t)
+                                NotificationManager.shared.cancelTaskReminders(taskId: t.id)
+                                taskToReschedule = nil
+                            }
+                        }
+                    }) {
+                        Text("Clear Date")
+                            .fontWeight(.semibold)
+                            .foregroundColor(.red)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(AppTheme.surface(.secondary, isDark: isDarkMode))
+                            .cornerRadius(12)
+                    }
+                    
+                    Button(action: {
+                        if var t = taskToReschedule {
+                            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                t.dueDate = tempDate
+                                try? eventKitManager.updateTask(t)
+                                NotificationManager.shared.scheduleTaskReminders(task: t)
+                                taskToReschedule = nil
+                            }
+                        }
+                    }) {
+                        Text("Reschedule")
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(AppTheme.matteSlate)
+                            .cornerRadius(12)
+                    }
+                }
+            }
+            .padding(24)
+            .background(AppTheme.surface(.secondary, isDark: isDarkMode))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.radiusLarge, style: .continuous))
+            .neutralShadow(radius: 8, y: 4, opacity: 0.15)
+            .padding(.horizontal, 30)
+            .zIndex(6)
+            .transition(.asymmetric(
+                insertion: .scale(scale: 0.92).combined(with: .opacity),
+                removal: .scale(scale: 0.98).combined(with: .opacity)
+            ))
+        }
+    }
+
+    @ViewBuilder
+    private func calendarSections() -> some View {
+        if !activeTasks.isEmpty {
+            let groupedTasks = Dictionary(grouping: activeTasks, by: { $0.reminder.calendar })
+            let allCalendars = groupedTasks.keys.compactMap { $0 }
+            let sortedCalendars = calendarOrderManager.sort(allCalendars).filter { !calendarOrderManager.isHidden($0.calendarIdentifier) }
+            
+            if isReorderingLists {
+                ForEach(reorderableCalendarIds, id: \.self) { calId in
+                    if let calendar = eventKitManager.getCalendars().first(where: { $0.calendarIdentifier == calId }) {
+                        editListRow(for: calendar, calId: calId)
+                    }
+                }
+                .onMove { source, destination in
+                    reorderableCalendarIds.move(fromOffsets: source, toOffset: destination)
+                    calendarOrderManager.updateOrder(from: reorderableCalendarIds)
+                }
+            } else {
+                ForEach(sortedCalendars, id: \.calendarIdentifier) { calendar in
+                    Section(header: calendarHeader(for: calendar)) {
+                        ForEach(groupedTasks[calendar] ?? []) { task in
+                            taskRow(for: task)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func voiceTaskProcessingSection() -> some View {
+        if isParsingVoiceTask {
+            Section(header: Text("Processing AI Task").foregroundColor(AppTheme.accent).bold().padding(.leading, 8)) {
+                HStack {
+                    Image(systemName: "sparkles")
+                        .foregroundColor(AppTheme.accent)
+                        .font(.title2)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(voiceTaskPlaceholderText)
+                            .foregroundColor(isDarkMode ? .white : .black)
+                            .lineLimit(1)
+                            .font(.body)
+                        Text("Gemini is structuring your task...")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    Spacer()
+                    ProgressView()
+                        .tint(AppTheme.accent)
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 16)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func habitSections() -> some View {
+        if !dueHabits.isEmpty {
+            Section {
+                ForEach(dueHabits) { habit in
+                    habitRow(for: habit)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func editListRow(for calendar: EKCalendar, calId: String) -> some View {
+        HStack {
+            let isHidden = calendarOrderManager.isHidden(calId)
+            Button(action: {
+                withAnimation { calendarOrderManager.toggleHidden(calId) }
+            }) {
+                Image(systemName: isHidden ? "eye.slash" : "eye")
+                    .foregroundColor(isHidden ? .gray : AppTheme.accent)
+                    .frame(width: 30)
+            }
+            .buttonStyle(.plain)
+            
+            Circle()
+                .fill(Color(cgColor: calendar.cgColor))
+                .frame(width: 12, height: 12)
+            Text(calendar.title)
+                .foregroundColor(isDarkMode ? .white : .black)
+            Spacer()
+            Image(systemName: "line.3.horizontal")
+                .foregroundColor(.gray)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    @ViewBuilder
+    private func calendarHeader(for calendar: EKCalendar) -> some View {
+        let calColor = Color(cgColor: calendar.cgColor)
+        let calTitle = calendar.title.uppercased()
+        
+        HStack(spacing: 8) {
+            Circle()
+                .fill(calColor)
+                .frame(width: 8, height: 8)
+            Text(calTitle)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundColor(calColor.opacity(0.8))
+                .tracking(0.5)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
+        .padding(.top, 16)
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(
+                    key: SectionBoundsKey.self,
+                    value: [calendar.calendarIdentifier: geo.frame(in: .named("InboxList"))]
+                )
+            }
+        )
+        .listRowInsets(EdgeInsets())
+        .background(
+            targetCalendarId == calendar.calendarIdentifier ? AppTheme.accent.opacity(0.2) : Color.clear
+        )
+        .contentShape(Rectangle())
+        .listRowBackground(Color.clear)
+        .onLongPressGesture {
+            let calendars = eventKitManager.getCalendars()
+            let sorted = calendarOrderManager.sort(calendars)
+            reorderableCalendarIds = sorted.map { $0.calendarIdentifier }
+            withAnimation {
+                isReorderingLists = true
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func habitRow(for habit: HabitItem) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                let isCompletedToday = habit.completionDates.contains { Calendar.current.isDateInToday($0) }
+                Image(systemName: isCompletedToday ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isCompletedToday ? AppTheme.matteAmber : .gray)
+                    .font(.title2)
+                    .contentShape(Circle())
+                    .onTapGesture { toggleHabit(habit) }
+                
+                HStack {
+                    Text(habit.title).foregroundColor(isDarkMode ? .white : .black)
+                    Spacer()
+                    
+                    if habit.streak > 0 {
+                        HStack(spacing: 4) {
+                            Text("\(habit.streak)")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(AppTheme.matteAmber)
+                            Image(systemName: "flame.fill").foregroundColor(AppTheme.matteAmber).font(.caption)
+                        }
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { habitToEdit = habit }
+            }
+            .padding(.vertical, 14)
+            .padding(.horizontal, 16)
+            .customSwipeActions(
+                left: leftSwipeAction,
+                right: rightSwipeAction,
+                onLeft: { handleHabitSwipe(option: leftSwipeAction, habit: habit) },
+                onRight: { handleHabitSwipe(option: rightSwipeAction, habit: habit) }
+            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            
+            Divider()
+                .padding(.horizontal, 16)
+
+        }
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    @ViewBuilder
+    private func taskRow(for task: AppTask) -> some View {
+        VStack(spacing: 0) {
+            let binding = self.binding(for: task)
+            
+            TaskRowView(
+                task: binding,
+                isExpanded: expandedTaskId == task.id,
+                isDarkMode: isDarkMode,
+                toggleTask: { toggleTask(task) },
+                onToggleExpand: {
+                    if expandedTaskId == task.id {
+                        expandedTaskId = nil
+                    } else {
+                        expandedTaskId = task.id
+                    }
+                },
+                onOpenCalendar: {
+                    tempDate = task.dueDate ?? Date()
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                        taskToReschedule = task
+                    }
+                }
+            )
+            .customSwipeActions(
+                left: leftSwipeAction,
+                right: rightSwipeAction,
+                onLeft: { handleTaskSwipe(option: leftSwipeAction, task: task) },
+                onRight: { handleTaskSwipe(option: rightSwipeAction, task: task) }
+            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            
+            Divider()
+                .padding(.horizontal, 16)
+        }
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
     }
     
     private func processVoiceCapture() {
@@ -739,7 +1112,7 @@ struct InboxView: View {
                             try? eventKitManager.updateTask(task, commit: false)
                         }
                     }
-                    try? eventKitManager.commitChanges()
+                    _ = try? eventKitManager.commitChanges()
                     viewModel.isFetchingBriefing = false
                 }
             } catch {
@@ -767,7 +1140,7 @@ struct InboxView: View {
                             try? eventKitManager.updateTask(task, commit: false)
                         }
                     }
-                    try? eventKitManager.commitChanges()
+                    _ = try? eventKitManager.commitChanges()
                     viewModel.isFetchingBriefing = false
                 }
             } catch {
@@ -790,9 +1163,9 @@ struct InboxView: View {
                 await MainActor.run {
                     for task in tasks {
                         let notes = "\(task.reason)\n\n<!-- {\"duration\": \"\(task.durationMinutes)m\"} -->"
-                        try? eventKitManager.addTask(title: task.title, notes: notes, commit: false)
+                        _ = try? eventKitManager.addTask(title: task.title, notes: notes, commit: false)
                     }
-                    try? eventKitManager.commitChanges()
+                    _ = try? eventKitManager.commitChanges()
                     viewModel.isFetchingBriefing = false
                 }
             } catch {
@@ -831,7 +1204,7 @@ struct InboxView: View {
                             }
                         }
                     }
-                    try? eventKitManager.commitChanges()
+                    _ = try? eventKitManager.commitChanges()
                     viewModel.isFetchingBriefing = false
                 }
             } catch {
@@ -870,7 +1243,7 @@ struct InboxView: View {
                             }
                         }
                     }
-                    try? eventKitManager.commitChanges()
+                    _ = try? eventKitManager.commitChanges()
                     viewModel.isFetchingBriefing = false
                 }
             } catch {
@@ -911,7 +1284,7 @@ struct InboxView: View {
                             }
                         }
                     }
-                    try? eventKitManager.commitChanges()
+                    _ = try? eventKitManager.commitChanges()
                     viewModel.isFetchingBriefing = false
                 }
             } catch {
@@ -978,6 +1351,13 @@ struct InboxView: View {
         case .delete:
             withAnimation {
                 NotificationManager.shared.cancelTaskReminders(taskId: task.id)
+                let archivedTask = ArchivedTask(
+                    title: task.title,
+                    originalCalendarIdentifier: task.reminder.calendar.calendarIdentifier,
+                    notes: task.notes,
+                    dueDate: task.dueDate
+                )
+                modelContext.insert(archivedTask)
                 try? eventKitManager.deleteTask(task)
                 WidgetCenter.shared.reloadAllTimelines()
             }
@@ -988,6 +1368,7 @@ struct InboxView: View {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
                 taskToReschedule = task
             }
+        case .restore: break
         case .none: break
         }
     }
@@ -998,6 +1379,7 @@ struct InboxView: View {
         case .delete: withAnimation { modelContext.delete(habit); try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines() }
         case .toggle: toggleHabit(habit)
         case .date: break
+        case .restore: break
         case .none: break
         }
     }

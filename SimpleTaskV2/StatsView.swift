@@ -76,15 +76,15 @@ struct StatsView: View {
                         VStack {
                             Text(String(format: "%.1f", totalFocusHours))
                                 .font(.system(size: 72, weight: .bold, design: .rounded))
-                                .foregroundColor(.pink)
+                                .foregroundColor(AppTheme.accent)
                             Text("Total Hours Focused")
                                 .font(.headline)
                                 .foregroundColor(.gray)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 30)
-                        .background(isDarkMode ? Color(white: 0.1) : Color.white)
-                        .cornerRadius(20)
+                        .background(AppTheme.surface(.secondary, isDark: isDarkMode))
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.radiusLarge, style: .continuous))
                         
                         // The New Subject Breakdown Chart
                         if !subjectBreakdown.isEmpty {
@@ -92,7 +92,7 @@ struct StatsView: View {
                                 HStack {
                                     Text("Subject Breakdown").font(.headline).foregroundColor(.gray)
                                     Spacer()
-                                    Image(systemName: "chart.bar.fill").foregroundColor(.pink)
+                                    Image(systemName: "chart.bar.fill").foregroundColor(AppTheme.accent)
                                 }
                                 
                                 ForEach(subjectBreakdown, id: \.name) { stat in
@@ -111,7 +111,7 @@ struct StatsView: View {
                                                     .frame(height: 8)
                                                 
                                                 Capsule()
-                                                    .fill(Color.pink)
+                                                    .fill(AppTheme.accent)
                                                 // Calculates width relative to the subject with the most hours
                                                     .frame(width: max(0, geo.size.width * CGFloat(stat.hours / (subjectBreakdown.first?.hours ?? 1))), height: 8)
                                             }
@@ -121,13 +121,13 @@ struct StatsView: View {
                                 }
                             }
                             .padding()
-                            .background(isDarkMode ? Color(white: 0.1) : Color.white)
-                            .cornerRadius(20)
+                            .background(AppTheme.surface(.secondary, isDark: isDarkMode))
+                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.radiusLarge, style: .continuous))
                         }
                         
                         HStack(spacing: 16) {
-                            SmallStatBox(title: "Tasks Done", value: "\(totalCompletedTasks)", icon: "checkmark.square.fill", color: .green, isDarkMode: isDarkMode)
-                            SmallStatBox(title: "Best Streak", value: "\(bestStreak)", icon: "flame.fill", color: .orange, isDarkMode: isDarkMode)
+                            SmallStatBox(title: "Tasks Done", value: "\(totalCompletedTasks)", icon: "checkmark.square.fill", color: AppTheme.matteTeal, isDarkMode: isDarkMode)
+                            SmallStatBox(title: "Best Streak", value: "\(bestStreak)", icon: "flame.fill", color: AppTheme.matteAmber, isDarkMode: isDarkMode)
                         }
                         
                         // Habit Health
@@ -135,18 +135,18 @@ struct StatsView: View {
                             HStack {
                                 Text("\(habits.count) Active Habits").foregroundColor(isDarkMode ? .white : .black).bold()
                                 Spacer()
-                                Image(systemName: "engine.combustion.fill").foregroundColor(.blue)
+                                Image(systemName: "engine.combustion.fill").foregroundColor(AppTheme.matteBlue)
                             }
                         }
                         .padding()
-                        .background(isDarkMode ? Color(white: 0.1) : Color.white)
-                        .cornerRadius(16)
+                        .background(AppTheme.surface(.secondary, isDark: isDarkMode))
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.radiusMedium, style: .continuous))
                         
                         // Weekly AI Insights
                         VStack(alignment: .leading, spacing: 16) {
                             HStack {
                                 Image(systemName: "sparkles")
-                                    .foregroundColor(.purple)
+                                    .foregroundColor(AppTheme.matteSlate)
                                     .font(.title2)
                                 Text("Weekly AI Insights")
                                     .font(.title2)
@@ -159,10 +159,10 @@ struct StatsView: View {
                                 }) {
                                     if isGeneratingInsights {
                                         ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: .purple))
+                                            .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.matteSlate))
                                     } else {
                                         Image(systemName: "arrow.clockwise")
-                                            .foregroundColor(.purple)
+                                            .foregroundColor(AppTheme.matteSlate)
                                             .font(.body.weight(.bold))
                                     }
                                 }
@@ -183,7 +183,7 @@ struct StatsView: View {
                                         Text("🏆 Top Habits")
                                             .font(.subheadline)
                                             .fontWeight(.bold)
-                                            .foregroundColor(.green)
+                                            .foregroundColor(AppTheme.matteTeal)
                                         ForEach(insights.topHabits, id: \.self) { habit in
                                             Text("• \(habit)")
                                                 .font(.subheadline)
@@ -196,7 +196,7 @@ struct StatsView: View {
                                         Text("📉 Struggles")
                                             .font(.subheadline)
                                             .fontWeight(.bold)
-                                            .foregroundColor(.orange)
+                                            .foregroundColor(AppTheme.matteAmber)
                                         ForEach(insights.struggles, id: \.self) { habit in
                                             Text("• \(habit)")
                                                 .font(.subheadline)
@@ -211,15 +211,15 @@ struct StatsView: View {
                                     Text("Action Plan")
                                         .font(.subheadline)
                                         .fontWeight(.bold)
-                                        .foregroundColor(.purple)
+                                        .foregroundColor(AppTheme.matteSlate)
                                     Text(insights.recommendedAction)
                                         .font(.subheadline)
                                         .foregroundColor(isDarkMode ? .white : .black)
                                 }
                                 .padding()
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.purple.opacity(0.1))
-                                .cornerRadius(12)
+                                .background(AppTheme.matteSlate.opacity(0.1))
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             } else if !isGeneratingInsights {
                                 Text("Tap the refresh button to generate your weekly insights.")
                                     .font(.subheadline)
@@ -227,9 +227,9 @@ struct StatsView: View {
                             }
                         }
                         .padding(20)
-                        .background(isDarkMode ? Color(white: 0.15) : Color.white)
-                        .cornerRadius(24)
-                        .shadow(color: .purple.opacity(0.15), radius: 20, x: 0, y: 10)
+                        .background(AppTheme.surface(.secondary, isDark: isDarkMode))
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.radiusLarge, style: .continuous))
+                        .neutralShadow(radius: 8, y: 4, opacity: 0.10)
                     }
                     .padding()
                     
@@ -284,7 +284,7 @@ struct SmallStatBox: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(isDarkMode ? Color(white: 0.1) : Color.white)
-        .cornerRadius(16)
+        .background(isDarkMode ? AppTheme.surfaceSecondary : AppTheme.lightSurfaceSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.radiusMedium, style: .continuous))
     }
 }

@@ -35,6 +35,17 @@ struct AppTask: Identifiable {
     var id: String { reminder.calendarItemIdentifier }
     var reminder: EKReminder
     
+    // MARK: - Subtasks
+    var subtasks: [AppTask] = []
+    
+    var parentID: String? {
+        reminder.value(forKey: "parentID") as? String
+    }
+    
+    mutating func setParent(_ parent: AppTask) {
+        reminder.setValue(parent.id, forKey: "parentID")
+    }
+    
     var title: String {
         get { reminder.title }
         set { reminder.title = newValue }
@@ -250,6 +261,27 @@ final class QueuedTaskAction {
         self.taskID = taskID
         self.actionType = actionType
         self.timestamp = Date()
+    }
+}
+
+// ---------------------------------------------------------
+// ARCHIVED TASKS (For "Trash" and Restore functionality)
+// ---------------------------------------------------------
+@Model
+final class ArchivedTask {
+    @Attribute(.unique) var id: UUID = UUID()
+    var title: String
+    var originalCalendarIdentifier: String?
+    var notes: String?
+    var dueDate: Date?
+    var deletionDate: Date
+    
+    init(title: String, originalCalendarIdentifier: String?, notes: String? = nil, dueDate: Date? = nil) {
+        self.title = title
+        self.originalCalendarIdentifier = originalCalendarIdentifier
+        self.notes = notes
+        self.dueDate = dueDate
+        self.deletionDate = Date()
     }
 }
 

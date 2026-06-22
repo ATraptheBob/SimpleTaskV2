@@ -39,7 +39,7 @@ struct EveningReviewView: View {
                                 .frame(width: 80, height: 80)
                             Circle()
                                 .trim(from: 0, to: CGFloat(briefing.productivityScore) / 10.0)
-                                .stroke(Color.indigo, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                                .stroke(AppTheme.matteSlate, style: StrokeStyle(lineWidth: 10, lineCap: .round))
                                 .frame(width: 80, height: 80)
                                 .rotationEffect(.degrees(-90))
                             Text("\(briefing.productivityScore)")
@@ -65,7 +65,7 @@ struct EveningReviewView: View {
                     Spacer()
                 }
                 .padding()
-                .background(Color(white: isDarkMode ? 0.1 : 0.95))
+                .background(AppTheme.surface(.primary, isDark: isDarkMode))
                 .cornerRadius(16)
                 .padding(.horizontal)
                 
@@ -104,7 +104,7 @@ struct EveningReviewView: View {
                         VStack(spacing: 16) {
                             Image(systemName: "moon.zzz.fill")
                                 .font(.system(size: 60))
-                                .foregroundColor(.indigo)
+                                .foregroundColor(AppTheme.matteSlate)
                             Text("All set for tomorrow!")
                                 .font(.title2.bold())
                                 .foregroundColor(isDarkMode ? .white : .black)
@@ -114,7 +114,7 @@ struct EveningReviewView: View {
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 30)
                                     .padding(.vertical, 12)
-                                    .background(Color.indigo)
+                                    .background(AppTheme.matteSlate)
                                     .clipShape(Capsule())
                             }
                         }
@@ -153,7 +153,7 @@ struct EveningReviewView: View {
             
             let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date()))
             let notes = "\(task.reason)\n\n<!-- {\"duration\": \"\(task.durationMinutes)m\"} -->"
-            try? EventKitManager.shared.addTask(title: task.title, notes: notes, dueDate: tomorrow)
+            _ = try? EventKitManager.shared.addTask(title: task.title, notes: notes, dueDate: tomorrow)
             
             withAnimation(.spring()) {
                 cardOffset.width = 500
@@ -201,7 +201,7 @@ fileprivate struct EveningCardView: View {
                 Text("\(task.durationMinutes) min")
             }
             .font(.subheadline.bold())
-            .foregroundColor(.indigo)
+            .foregroundColor(AppTheme.matteSlate)
             
             Text(task.reason)
                 .font(.body)
@@ -212,8 +212,8 @@ fileprivate struct EveningCardView: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: 300, alignment: .topLeading)
-        .background(isDarkMode ? Color(white: 0.15) : Color(white: 0.95))
+        .background(AppTheme.surface(.secondary, isDark: isDarkMode))
         .cornerRadius(20)
-        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
+        .neutralShadow(radius: 8, y: 4, opacity: 0.15)
     }
 }

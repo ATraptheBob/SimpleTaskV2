@@ -101,12 +101,31 @@ class EventKitManager: ObservableObject {
         let predicate = store.predicateForReminders(in: nil)
         return try await withCheckedThrowingContinuation { continuation in
             store.fetchReminders(matching: predicate) { reminders in
-                if let reminders = reminders {
-                    let appTasks = reminders.map { AppTask(reminder: $0) }
-                    continuation.resume(returning: appTasks)
-                } else {
+                guard let reminders = reminders else {
                     continuation.resume(returning: [])
+                    return
                 }
+                
+                var topLevelTasks: [AppTask] = []
+                var childTasks: [String: [AppTask]] = [:] // parentID -> children
+                
+                for reminder in reminders {
+                    let task = AppTask(reminder: reminder)
+                    if let parentID = task.parentID {
+                        childTasks[parentID, default: []].append(task)
+                    } else {
+                        topLevelTasks.append(task)
+                    }
+                }
+                
+                for i in 0..<topLevelTasks.count {
+                    let parentID = topLevelTasks[i].id
+                    if let children = childTasks[parentID] {
+                        topLevelTasks[i].subtasks = children
+                    }
+                }
+                
+                continuation.resume(returning: topLevelTasks)
             }
         }
     }
@@ -145,7 +164,7 @@ class EventKitManager: ObservableObject {
         return reminder
     }
     
-    func addTask(title: String, notes: String? = nil, dueDate: Date? = nil, calendar: EKCalendar? = nil, commit: Bool = true) throws {
+    func addTask(title: String, notes: String? = nil, dueDate: Date? = nil, calendar: EKCalendar? = nil, commit: Bool = true) throws -> AppTask {
         let reminder = EKReminder(eventStore: store)
         reminder.calendar = calendar ?? store.defaultCalendarForNewReminders()
         reminder.title = title
@@ -154,7 +173,24 @@ class EventKitManager: ObservableObject {
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: dueDate)
             reminder.dueDateComponents = components
         }
-        try saveTask(AppTask(reminder: reminder), commit: commit)
+        let task = AppTask(reminder: reminder)
+        try saveTask(task, commit: commit)
+        return task
+    }
+    
+    // MARK: - Subtasks
+    
+    func addSubtask(title: String, to parent: AppTask, commit: Bool = true) throws -> AppTask {
+        let reminder = EKReminder(eventStore: store)
+        // Subtasks must typically share the same calendar
+        reminder.calendar = parent.reminder.calendar
+        reminder.title = title
+        
+        var subtask = AppTask(reminder: reminder)
+        subtask.setParent(parent)
+        
+        try store.save(reminder, commit: commit)
+        return subtask
     }
     
     // MARK: - Calendar

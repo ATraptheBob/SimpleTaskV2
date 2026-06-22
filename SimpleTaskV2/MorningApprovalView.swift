@@ -67,7 +67,7 @@ struct MorningApprovalView: View {
                         VStack(spacing: 16) {
                             Image(systemName: "checkmark.seal.fill")
                                 .font(.system(size: 60))
-                                .foregroundColor(.pink)
+                                .foregroundColor(AppTheme.accent)
                             Text("All caught up!")
                                 .font(.title2.bold())
                                 .foregroundColor(isDarkMode ? .white : .black)
@@ -75,7 +75,7 @@ struct MorningApprovalView: View {
                                 isPresented = false
                             }
                             .buttonStyle(.borderedProminent)
-                            .tint(.pink)
+                            .tint(AppTheme.accent)
                         }
                         .transition(.opacity)
                     }
@@ -133,7 +133,7 @@ struct MorningApprovalView: View {
     }
     
     private func swipeCard(to direction: SwipeDirection) {
-        let width = UIScreen.main.bounds.width
+        let width: CGFloat = 500
         cardOffset = CGSize(width: direction == .right ? width : -width, height: 0)
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -148,7 +148,7 @@ struct MorningApprovalView: View {
         }
         
         // Add to EventKit
-        try? eventKitManager.addTask(
+        _ = try? eventKitManager.addTask(
             title: task.title,
             notes: task.reason + "\n\n<!-- {\"duration\": \"\(task.durationMinutes)m\"} -->",
             dueDate: Calendar.current.startOfDay(for: Date())
@@ -175,7 +175,7 @@ fileprivate struct CardView: View {
                 Text("\(task.durationMinutes) min")
             }
             .font(.subheadline)
-            .foregroundColor(.pink)
+            .foregroundColor(AppTheme.accent)
             
             Text(task.reason)
                 .font(.body)
@@ -185,8 +185,8 @@ fileprivate struct CardView: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(isDarkMode ? Color(white: 0.15) : Color(white: 0.95))
+        .background(AppTheme.surface(.secondary, isDark: isDarkMode))
         .cornerRadius(20)
-        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
+        .neutralShadow(radius: 8, y: 4, opacity: 0.15)
     }
 }

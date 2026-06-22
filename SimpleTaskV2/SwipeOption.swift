@@ -5,6 +5,7 @@ enum SwipeOption: String, CaseIterable {
     case delete = "Delete"
     case toggle = "Check/Uncheck"
     case date = "Reschedule" // NEW ACTION
+    case restore = "Restore"
     case none = "None"
     
     var icon: String {
@@ -13,6 +14,7 @@ enum SwipeOption: String, CaseIterable {
         case .delete: return "trash"
         case .toggle: return "checkmark.circle"
         case .date: return "calendar" // NEW
+        case .restore: return "arrow.uturn.backward"
         case .none: return ""
         }
     }
@@ -23,6 +25,7 @@ enum SwipeOption: String, CaseIterable {
         case .delete: return .red
         case .toggle: return .pink
         case .date: return .purple // NEW
+        case .restore: return .green
         case .none: return .clear
         }
     }

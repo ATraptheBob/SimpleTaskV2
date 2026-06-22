@@ -11,6 +11,7 @@ struct TaskRowView: View {
     var onOpenCalendar: () -> Void
 
     @State private var isEditingNotes = false
+    @State private var showingSubtasks = false
     @State private var selectedPhotoItem: PhotosPickerItem?
 
     var body: some View {
@@ -18,7 +19,7 @@ struct TaskRowView: View {
             // HEADER ROW (Always visible)
             HStack(alignment: .top) {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(task.isCompleted ? .pink : .gray)
+                    .foregroundColor(task.isCompleted ? AppTheme.accent : .gray)
                     .font(.title2)
                     .contentShape(Circle())
                     .onTapGesture { toggleTask() }
@@ -56,7 +57,7 @@ struct TaskRowView: View {
                     .foregroundColor(isDarkMode ? .gray : .secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
-                    .background(isDarkMode ? Color(white: 0.2) : Color(white: 0.9))
+                    .background(AppTheme.surface(.tertiary, isDark: isDarkMode))
                     .clipShape(Capsule())
                 }
                 
@@ -101,7 +102,7 @@ struct TaskRowView: View {
                                     .foregroundColor(isEditingNotes ? .green : .gray)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 4)
-                                    .background(isDarkMode ? Color(white: 0.25) : Color(white: 0.85))
+                                    .background(AppTheme.surface(.tertiary, isDark: isDarkMode))
                                     .clipShape(Capsule())
                             }
                             .buttonStyle(.plain)
@@ -112,7 +113,7 @@ struct TaskRowView: View {
                                 .font(.callout)
                                 .foregroundColor(isDarkMode ? .white : .black)
                                 .padding(12)
-                                .background(isDarkMode ? Color.black.opacity(0.4) : Color.white.opacity(0.8))
+                                .background(AppTheme.surface(.tertiary, isDark: isDarkMode))
                                 .cornerRadius(12)
                         } else {
                             if task.notes.isEmpty {
@@ -134,7 +135,7 @@ struct TaskRowView: View {
                                 .foregroundColor(isDarkMode ? .white.opacity(0.9) : .black.opacity(0.9))
                                 .padding(12)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(isDarkMode ? Color.black.opacity(0.2) : Color.white.opacity(0.5))
+                                .background(AppTheme.surface(.secondary, isDark: isDarkMode))
                                 .cornerRadius(12)
                             }
                         }
@@ -144,12 +145,43 @@ struct TaskRowView: View {
                     HStack(spacing: 16) {
                         Spacer()
 
+                        Button(action: {
+                            showingSubtasks = true
+                        }) {
+                            Image(systemName: "list.bullet.indent")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(AppTheme.matteSlate)
+                                .frame(width: 32, height: 32)
+                                .background(AppTheme.surface(.tertiary, isDark: isDarkMode))
+                                .clipShape(Circle())
+                                .accessibilityLabel("Subtasks")
+                                .overlay(
+                                    Group {
+                                        if !task.subtasks.isEmpty {
+                                            Text("\(task.subtasks.count)")
+                                                .font(.system(size: 10, weight: .bold))
+                                                .foregroundColor(.white)
+                                                .padding(4)
+                                                .background(AppTheme.accent)
+                                                .clipShape(Circle())
+                                                .offset(x: 10, y: -10)
+                                        }
+                                    },
+                                    alignment: .topTrailing
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .sheet(isPresented: $showingSubtasks) {
+                            SubtasksSheet(parentTask: $task, isPresented: $showingSubtasks)
+                                .presentationDetents([.medium, .large])
+                        }
+
                         Button(action: onOpenCalendar) {
                             Image(systemName: "calendar")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(.purple)
+                                .foregroundColor(AppTheme.matteSlate)
                                 .frame(width: 32, height: 32)
-                                .background(isDarkMode ? Color(white: 0.25) : Color(white: 0.85))
+                                .background(AppTheme.surface(.tertiary, isDark: isDarkMode))
                                 .clipShape(Circle())
                                 .accessibilityLabel("Reschedule Task")
                         }
@@ -162,7 +194,7 @@ struct TaskRowView: View {
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 16)
-        .background(isExpanded ? (isDarkMode ? Color(white: 0.15) : Color(white: 0.95)) : Color.clear)
+        .background(isExpanded ? AppTheme.surface(.secondary, isDark: isDarkMode) : Color.clear)
         .cornerRadius(isExpanded ? 16 : 0)
     }
     
@@ -170,8 +202,8 @@ struct TaskRowView: View {
     
     private func importanceColor(for level: String) -> Color {
         switch level.lowercased() {
-        case "high": return .red
-        case "medium": return .yellow
+        case "high": return AppTheme.matteRed
+        case "medium": return AppTheme.matteAmber
         case "low": return .gray
         default: return .clear
         }

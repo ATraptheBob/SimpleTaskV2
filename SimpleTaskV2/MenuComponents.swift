@@ -6,31 +6,30 @@ struct HamburgerButton: View {
     var body: some View {
         Button(action: {
             HapticAndSoundManager.shared.triggerHapticSelection()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { isOpen.toggle() }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { isOpen.toggle() }
         }) {
             VStack(spacing: 6) {
-                Capsule().fill(isOpen ? Color.pink : (isDarkMode ? Color.gray : Color.black)).frame(width: 24, height: 3).rotationEffect(.degrees(isOpen ? 45 : 0)).offset(y: isOpen ? 9 : 0)
+                Capsule().fill(isOpen ? AppTheme.accent : (isDarkMode ? Color.gray : Color.black)).frame(width: 24, height: 3).rotationEffect(.degrees(isOpen ? 45 : 0)).offset(y: isOpen ? 9 : 0)
                 Capsule().fill(isDarkMode ? Color.gray : Color.black).frame(width: 24, height: 3).opacity(isOpen ? 0 : 1)
-                Capsule().fill(isOpen ? Color.pink : (isDarkMode ? Color.gray : Color.black)).frame(width: 24, height: 3).rotationEffect(.degrees(isOpen ? -45 : 0)).offset(y: isOpen ? -9 : 0)
+                Capsule().fill(isOpen ? AppTheme.accent : (isDarkMode ? Color.gray : Color.black)).frame(width: 24, height: 3).rotationEffect(.degrees(isOpen ? -45 : 0)).offset(y: isOpen ? -9 : 0)
             }
+            .frame(width: 44, height: 44, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .frame(width: 44, height: 44, alignment: .leading)
         .accessibilityLabel(isOpen ? "Close Menu" : "Open Menu")
     }
 }
 
 struct MenuLink: View {
     let title: String
-    let subtitle: String?
     let icon: String
     let badgeCount: Int?
     
     @AppStorage("isDarkMode") private var isDarkMode = true
     
-    init(title: String, icon: String, subtitle: String? = nil, badgeCount: Int? = nil) {
+    init(title: String, icon: String, badgeCount: Int? = nil) {
         self.title = title
         self.icon = icon
-        self.subtitle = subtitle
         self.badgeCount = badgeCount
     }
     
@@ -38,25 +37,16 @@ struct MenuLink: View {
         HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(Color.pink.opacity(0.15))
-                    .frame(width: 44, height: 44)
+                    .fill(AppTheme.accent.opacity(0.15))
+                    .frame(width: 40, height: 40)
                 Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundColor(.pink)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(AppTheme.accent)
             }
             
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .foregroundColor(isDarkMode ? .white : .black)
-                
-                if let sub = subtitle {
-                    Text(sub)
-                        .font(.system(size: 13, weight: .regular, design: .rounded))
-                        .foregroundColor(.gray)
-                        .lineLimit(1)
-                }
-            }
+            Text(title)
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .foregroundColor(isDarkMode ? .white : .black)
             
             Spacer()
             
@@ -66,18 +56,17 @@ struct MenuLink: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.pink)
+                    .background(AppTheme.accent)
                     .clipShape(Capsule())
             } else {
                 Image(systemName: "chevron.right")
-                    .font(.footnote.bold())
-                    .foregroundColor(Color(white: 0.5))
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(Color.gray.opacity(0.5))
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 12)
         .padding(.horizontal, 16)
-        .background(isDarkMode ? Color(white: 0.15) : Color(white: 0.95))
-        .cornerRadius(16)
+        .background(Color.clear)
         .contentShape(Rectangle())
     }
 }

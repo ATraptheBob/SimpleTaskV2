@@ -30,6 +30,19 @@ struct SwipeRowModifier: ViewModifier {
                                     Spacer()
                                 }
                             )
+                            .mask(
+                                ZStack {
+                                    HStack {
+                                        Rectangle()
+                                            .frame(width: max(offset + 16, 0))
+                                        Spacer()
+                                    }
+                                    RoundedRectangle(cornerRadius: offset != 0 ? 16 : 0)
+                                        .offset(x: offset)
+                                        .blendMode(.destinationOut)
+                                }
+                                .compositingGroup()
+                            )
                     }
 
                     if offset < 0 {
@@ -46,16 +59,30 @@ struct SwipeRowModifier: ViewModifier {
                                         .padding(.trailing, 20)
                                 }
                             )
+                            .mask(
+                                ZStack {
+                                    HStack {
+                                        Spacer()
+                                        Rectangle()
+                                            .frame(width: max(-offset + 16, 0))
+                                    }
+                                    RoundedRectangle(cornerRadius: offset != 0 ? 16 : 0)
+                                        .offset(x: offset)
+                                        .blendMode(.destinationOut)
+                                }
+                                .compositingGroup()
+                            )
                     }
                 }
             }
 
             content
-                .background(isDarkMode ? Color.black : Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .background(Color.clear)
+                .contentShape(Rectangle())
+                .clipShape(RoundedRectangle(cornerRadius: offset != 0 ? 16 : 0))
                 .offset(x: offset)
                 .gesture(
-                    DragGesture(minimumDistance: 30)
+                    DragGesture(minimumDistance: 15)
                         .onChanged { value in
                             let drag = value.translation.width
                             offset = drag > 0 ? pow(drag, 0.9) : -pow(-drag, 0.9)
@@ -71,7 +98,7 @@ struct SwipeRowModifier: ViewModifier {
                             }
                         }
                         .onEnded { value in
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 1.0)) {
                                 if offset > triggerThreshold && leftOption != .none {
                                     onLeftSwipe()
                                 } else if offset < -triggerThreshold && rightOption != .none {

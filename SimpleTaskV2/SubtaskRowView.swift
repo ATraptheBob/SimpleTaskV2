@@ -17,6 +17,8 @@ struct SubtaskRowView: View {
                         onUpdate()
                     }
                 }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel(subtask.isCompleted ? "Mark incomplete" : "Mark complete")
 
             TextField("Step", text: $subtask.title, onEditingChanged: { isEditing in
                 if !isEditing {
@@ -37,6 +39,7 @@ struct SubtaskRowView: View {
                     .foregroundColor(.gray)
                     .padding(.horizontal, 4)
                     .onTapGesture { onDelete() }
+                    .accessibilityAddTraits(.isButton)
                     .accessibilityLabel("Delete subtask")
             }
         }

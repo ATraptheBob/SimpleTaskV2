@@ -23,6 +23,8 @@ struct TaskRowView: View {
                     .font(.title2)
                     .contentShape(Circle())
                     .onTapGesture { toggleTask() }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel(task.isCompleted ? "Mark incomplete" : "Mark complete")
 
                 VStack(alignment: .leading, spacing: 4) {
                     if isExpanded {

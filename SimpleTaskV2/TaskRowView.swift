@@ -10,7 +10,7 @@ struct TaskRowView: View {
     var onToggleExpand: () -> Void
     var onOpenCalendar: () -> Void
 
-    @State private var isEditingNotes = false
+    @Binding var isEditingNotes: Bool
     @State private var showingSubtasks = false
     @State private var selectedPhotoItem: PhotosPickerItem?
 
@@ -91,21 +91,6 @@ struct TaskRowView: View {
                         HStack {
                             Text("Notes").font(.caption.bold()).foregroundColor(.gray)
                             Spacer()
-                            Button(action: {
-                                withAnimation {
-                                    isEditingNotes.toggle()
-                                    if !isEditingNotes { try? EventKitManager.shared.updateTask(task) }
-                                }
-                            }) {
-                                Text(isEditingNotes ? "Done" : (task.notes.isEmpty ? "Add" : "Edit"))
-                                    .font(.caption.bold())
-                                    .foregroundColor(isEditingNotes ? .green : .gray)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 4)
-                                    .background(AppTheme.surface(.tertiary, isDark: isDarkMode))
-                                    .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
                         }
 
                         if isEditingNotes {
@@ -196,6 +181,11 @@ struct TaskRowView: View {
         .padding(.horizontal, 16)
         .background(isExpanded ? AppTheme.surface(.secondary, isDark: isDarkMode) : Color.clear)
         .cornerRadius(isExpanded ? 16 : 0)
+        .onChange(of: isEditingNotes) { _, newValue in
+            if !newValue {
+                try? EventKitManager.shared.updateTask(task)
+            }
+        }
     }
     
     // MARK: - Helpers

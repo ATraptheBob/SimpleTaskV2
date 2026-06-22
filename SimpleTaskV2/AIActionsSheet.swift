@@ -15,11 +15,11 @@ struct AIActionsSheet: View {
     @State private var apiKey: String = KeychainManager.shared.getApiKey()
     
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 12) {
             Text("AI Actions")
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundColor(isDarkMode ? .white : .black)
-                .padding(.top, 24)
+                .padding(.top, 16)
             
             if apiKey.isEmpty {
                 HStack(spacing: 12) {
@@ -41,7 +41,7 @@ struct AIActionsSheet: View {
                 .padding(.horizontal)
             }
             
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 16) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 12) {
                 AIGridTile(icon: "sun.max.fill", label: "Morning", color: AppTheme.matteAmber, disabled: apiKey.isEmpty, isDarkMode: isDarkMode) { dismissAndRun(onMorningBrief) }
                 AIGridTile(icon: "moon.stars.fill", label: "Evening", color: AppTheme.matteSlate, disabled: apiKey.isEmpty, isDarkMode: isDarkMode) { dismissAndRun(onEveningBrief) }
                 AIGridTile(icon: "tag.fill", label: "Priority", color: AppTheme.matteRed, disabled: apiKey.isEmpty, isDarkMode: isDarkMode) { dismissAndRun(onLabelImportance) }
@@ -52,13 +52,13 @@ struct AIActionsSheet: View {
                 AIGridTile(icon: "text.bubble.fill", label: "Capture", color: AppTheme.matteTeal, disabled: apiKey.isEmpty, isDarkMode: isDarkMode) { dismissAndRun(onQuickCapture) }
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 24)
+            .padding(.bottom, 16)
         }
         .background(AppTheme.surface(.secondary, isDark: isDarkMode))
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .padding(.horizontal, 16)
-        .padding(.bottom, 32)
-        .presentationDetents([.height(apiKey.isEmpty ? 360 : 280)])
+        .padding(.bottom, 20)
+        .presentationDetents([.height(apiKey.isEmpty ? 320 : 250)])
         .presentationDragIndicator(.hidden)
         .presentationBackground(.clear)
         .onAppear { apiKey = KeychainManager.shared.getApiKey() }

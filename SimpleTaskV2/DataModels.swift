@@ -35,15 +35,30 @@ struct AppTask: Identifiable {
     var id: String { reminder.calendarItemIdentifier }
     var reminder: EKReminder
     
-    // MARK: - Subtasks
-    var subtasks: [AppTask] = []
-    
-    var parentID: String? {
-        reminder.value(forKey: "parentID") as? String
+    struct SubtaskData: Codable, Identifiable {
+        var id: UUID = UUID()
+        var title: String
+        var isCompleted: Bool
     }
     
-    mutating func setParent(_ parent: AppTask) {
-        reminder.setValue(parent.id, forKey: "parentID")
+    // MARK: - Subtasks
+    var subtasks: [SubtaskData] {
+        get {
+            if let str = metadataDict?["subtasks"],
+               let data = str.data(using: .utf8),
+               let items = try? JSONDecoder().decode([SubtaskData].self, from: data) {
+                return items
+            }
+            return []
+        }
+        set {
+            if newValue.isEmpty {
+                setMetadata(key: "subtasks", value: nil)
+            } else if let data = try? JSONEncoder().encode(newValue),
+                      let str = String(data: data, encoding: .utf8) {
+                setMetadata(key: "subtasks", value: str)
+            }
+        }
     }
     
     var title: String {
@@ -79,8 +94,25 @@ struct AppTask: Identifiable {
     }
     
     var notes: String {
-        get { reminder.notes ?? "" }
-        set { reminder.notes = newValue }
+        get {
+            var currentNotes = reminder.notes ?? ""
+            if let range = currentNotes.range(of: "<!-- \\{.*\\} -->", options: .regularExpression) {
+                currentNotes.removeSubrange(range)
+            }
+            return currentNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        set {
+            let dict = self.metadataDict
+            var newNotes = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let dict = dict, !dict.isEmpty, let jsonData = try? JSONSerialization.data(withJSONObject: dict),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                if !newNotes.isEmpty {
+                    newNotes += "\n\n"
+                }
+                newNotes += "<!-- \(jsonString) -->"
+            }
+            reminder.notes = newNotes.isEmpty && dict?.isEmpty ?? true ? nil : newNotes
+        }
     }
     
     // MARK: - Hidden JSON Metadata in Notes

@@ -18,6 +18,7 @@ struct GlobalSearchView: View {
     @State private var expandedTaskId: String? = nil
     @State private var taskToReschedule: AppTask? = nil
     @State private var tempDate: Date = Date()
+    @State private var isEditingExpandedTask = false
 
     var activeTasks: [AppTask] {
         let cal = Calendar.current
@@ -118,9 +119,11 @@ struct GlobalSearchView: View {
                 toggleTask: { toggleTask(task) },
                 onToggleExpand: {
                     if expandedTaskId == task.id {
+                        isEditingExpandedTask = false
                         expandedTaskId = nil
                     } else {
                         expandedTaskId = task.id
+                        isEditingExpandedTask = false
                     }
                 },
                 onOpenCalendar: {
@@ -128,7 +131,11 @@ struct GlobalSearchView: View {
                     withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
                         taskToReschedule = task
                     }
-                }
+                },
+                isEditingNotes: Binding(
+                    get: { expandedTaskId == task.id && isEditingExpandedTask },
+                    set: { if expandedTaskId == task.id { isEditingExpandedTask = $0 } }
+                )
             )
             .customSwipeActions(
                 left: leftSwipeAction,

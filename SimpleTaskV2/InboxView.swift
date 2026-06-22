@@ -33,7 +33,8 @@ struct InboxView: View {
     @State private var showingMorningApproval = false
     @State private var morningBriefing: MorningBriefing? = nil
     
-    @State private var expandedTaskId: String? = nil
+    @Binding var expandedTaskId: String?
+    @Binding var isEditingExpandedTask: Bool
     
     // AI States
     @State private var showingAIActions = false
@@ -184,6 +185,14 @@ struct InboxView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 16)
                     .contentShape(Rectangle())
+                    .onTapGesture {
+                        if expandedTaskId != nil {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                isEditingExpandedTask = false
+                                expandedTaskId = nil
+                            }
+                        }
+                    }
                     
 
                     
@@ -356,8 +365,6 @@ struct InboxView: View {
                     onSmartContext: runSmartContext,
                     onAutoReschedule: runAutoReschedule
                 )
-                .presentationDetents([.medium, .large])
-                .presentationBackground(.clear)
             }
 
             .fullScreenCover(isPresented: Binding(
@@ -763,9 +770,11 @@ struct InboxView: View {
                 toggleTask: { toggleTask(task) },
                 onToggleExpand: {
                     if expandedTaskId == task.id {
+                        isEditingExpandedTask = false
                         expandedTaskId = nil
                     } else {
                         expandedTaskId = task.id
+                        isEditingExpandedTask = false
                     }
                 },
                 onOpenCalendar: {
@@ -773,7 +782,11 @@ struct InboxView: View {
                     withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
                         taskToReschedule = task
                     }
-                }
+                },
+                isEditingNotes: Binding(
+                    get: { expandedTaskId == task.id && isEditingExpandedTask },
+                    set: { if expandedTaskId == task.id { isEditingExpandedTask = $0 } }
+                )
             )
             .customSwipeActions(
                 left: leftSwipeAction,

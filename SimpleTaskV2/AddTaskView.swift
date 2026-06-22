@@ -22,7 +22,14 @@ struct AddTaskView: View {
     @State private var selectedCalendarIdentifier: String = ""
     @State private var priority: Int = 0  // 0 = none, 1 = high, 5 = medium, 9 = low
     @State private var isUrgent: Bool = false
-    @State private var newSubtasks: [String] = []    
+    @State private var newSubtasks: [String] = []
+    @State private var activeSection: ActiveSection? = nil
+    
+    enum ActiveSection {
+        case date
+        case priority
+        case subtasks
+    }
     private var selectedCalendarColor: Color {
         let calendars = eventKitManager.getCalendars()
         if let cal = calendars.first(where: { $0.calendarIdentifier == selectedCalendarIdentifier }) {
@@ -277,46 +284,132 @@ struct AddTaskView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
+            // Main Input Area
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top) {
+                    Image(systemName: "square")
+                        .font(.system(size: 20))
+                        .foregroundColor(.gray.opacity(0.3))
+                        .padding(.top, 4)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        TextField("New To-Do", text: $title)
+                            .font(.title3)
+                            .focused($isTitleFocused)
+                        
+                        TextField("Notes", text: $notes)
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                            .focused($isNotesFocused)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: closeSheet) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.gray)
+                            .padding(8)
+                            .background(Color.gray.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                }
+                
+                // Toolbar Icons
+                HStack(spacing: 24) {
+                    Spacer()
+                    
+                    Button(action: { withAnimation { activeSection = activeSection == .date ? nil : .date } }) {
+                        Image(systemName: "calendar")
+                            .foregroundColor(hasDueDate ? selectedCalendarColor : .gray.opacity(0.4))
+                    }
+                    
+                    Button(action: { }) {
+                        Image(systemName: "tag")
+                            .foregroundColor(.gray.opacity(0.4))
+                    }
+                    
+                    Button(action: { withAnimation { activeSection = activeSection == .subtasks ? nil : .subtasks } }) {
+                        Image(systemName: "list.bullet")
+                            .foregroundColor(!newSubtasks.isEmpty ? selectedCalendarColor : .gray.opacity(0.4))
+                    }
+                    
+                    Button(action: { withAnimation { activeSection = activeSection == .priority ? nil : .priority } }) {
+                        Image(systemName: "flag")
+                            .foregroundColor(priority > 0 ? selectedCalendarColor : .gray.opacity(0.4))
+                    }
+                }
+                .font(.system(size: 20))
+                .padding(.top, 8)
+                .padding(.bottom, 4)
+                .padding(.trailing, 8)
+            }
+            .padding(.top, 16)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+            
+            // Expandable Sections
+            if activeSection != nil {
+                ScrollView {
+                    VStack(spacing: 20) {
+                        if activeSection == .date {
+                            dueDateSection
+                        } else if activeSection == .priority {
+                            prioritySection
+                        } else if activeSection == .subtasks {
+                            subtasksSection
+                        }
+                    }
+                    .padding(.vertical, 16)
+                }
+                .frame(maxHeight: 250)
+                .background(AppTheme.surface(.secondary, isDark: isDarkMode))
+            }
+            
+            Divider()
+            
+            // Bottom Bar
             HStack {
-                Button("Cancel") { closeSheet() }
+                Menu {
+                    ForEach(eventKitManager.getCalendars(), id: \.calendarIdentifier) { calendar in
+                        Button(action: { selectedCalendarIdentifier = calendar.calendarIdentifier }) {
+                            Text(calendar.title)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "tray")
+                        let calendars = eventKitManager.getCalendars()
+                        if let cal = calendars.first(where: { $0.calendarIdentifier == selectedCalendarIdentifier }) {
+                            Text(cal.title)
+                        } else {
+                            Text("Inbox")
+                        }
+                    }
+                    .font(.subheadline.bold())
                     .foregroundColor(.gray)
-                
-                Spacer()
-                
-                Text(taskToEdit == nil ? "New Reminder" : "Edit Reminder")
-                    .font(.headline)
-                    .foregroundColor(isDarkMode ? .white : .black)
+                }
                 
                 Spacer()
                 
                 Button(action: saveReminder) {
                     Text("Save")
-                        .fontWeight(.bold)
-                        .foregroundColor(title.isEmpty ? .gray : selectedCalendarColor)
+                        .font(.subheadline.bold())
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 10)
+                        .background(title.isEmpty ? Color.blue.opacity(0.5) : Color.blue)
+                        .clipShape(Capsule())
                 }
                 .disabled(title.isEmpty)
             }
-            .padding()
-            
-            ScrollView {
-                VStack(spacing: 20) {
-                                        titleSection
-                    listPickerSection
-                    dueDateSection
-                    prioritySection
-                    subtasksSection
-                    notesSection
-                }
-.padding(.top, 16)
-                .padding(.bottom, 40)
-            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(AppTheme.surface(.tertiary, isDark: isDarkMode))
         }
-        .background(AppTheme.surface(.secondary, isDark: isDarkMode))
+        .background(AppTheme.surface(.primary, isDark: isDarkMode))
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .frame(maxHeight: 600)
-        // Apply shadow to make it look floating
-        .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
+        .shadow(color: Color.black.opacity(isDarkMode ? 0.3 : 0.1), radius: 20, x: 0, y: 10)
         .padding(.horizontal, 16)
         .onAppear {
             if let task = taskToEdit {
@@ -377,6 +470,12 @@ struct AddTaskView: View {
                 task.reminder.alarms = nil
             }
             
+            var currentSubtasks = task.subtasks
+            for subtaskTitle in newSubtasks where !subtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                currentSubtasks.append(AppTask.SubtaskData(title: subtaskTitle, isCompleted: false))
+            }
+            task.subtasks = currentSubtasks
+            
             try? eventKitManager.updateTask(task)
             NotificationManager.shared.scheduleTaskReminders(task: task)
         } else {
@@ -395,13 +494,17 @@ struct AddTaskView: View {
             }
             var newTask = AppTask(reminder: reminder)
             newTask.isUrgent = isUrgent
+            
+            var addedSubtasks = [AppTask.SubtaskData]()
+            for subtaskTitle in newSubtasks where !subtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                addedSubtasks.append(AppTask.SubtaskData(title: subtaskTitle, isCompleted: false))
+            }
+            if !addedSubtasks.isEmpty {
+                newTask.subtasks = addedSubtasks
+            }
+            
             try? eventKitManager.saveTask(newTask)
             NotificationManager.shared.scheduleTaskReminders(task: newTask)
-            
-            // Save subtasks
-            for subtaskTitle in newSubtasks where !subtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                _ = try? eventKitManager.addSubtask(title: subtaskTitle, to: newTask)
-            }
         }
         
         Task {

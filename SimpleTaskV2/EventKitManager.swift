@@ -107,22 +107,9 @@ class EventKitManager: ObservableObject {
                 }
                 
                 var topLevelTasks: [AppTask] = []
-                var childTasks: [String: [AppTask]] = [:] // parentID -> children
-                
                 for reminder in reminders {
                     let task = AppTask(reminder: reminder)
-                    if let parentID = task.parentID {
-                        childTasks[parentID, default: []].append(task)
-                    } else {
-                        topLevelTasks.append(task)
-                    }
-                }
-                
-                for i in 0..<topLevelTasks.count {
-                    let parentID = topLevelTasks[i].id
-                    if let children = childTasks[parentID] {
-                        topLevelTasks[i].subtasks = children
-                    }
+                    topLevelTasks.append(task)
                 }
                 
                 continuation.resume(returning: topLevelTasks)
@@ -179,19 +166,7 @@ class EventKitManager: ObservableObject {
     }
     
     // MARK: - Subtasks
-    
-    func addSubtask(title: String, to parent: AppTask, commit: Bool = true) throws -> AppTask {
-        let reminder = EKReminder(eventStore: store)
-        // Subtasks must typically share the same calendar
-        reminder.calendar = parent.reminder.calendar
-        reminder.title = title
-        
-        var subtask = AppTask(reminder: reminder)
-        subtask.setParent(parent)
-        
-        try store.save(reminder, commit: commit)
-        return subtask
-    }
+    // Subtasks are now managed via metadata in AppTask's notes, so no native addSubtask is needed.
     
     // MARK: - Calendar
     

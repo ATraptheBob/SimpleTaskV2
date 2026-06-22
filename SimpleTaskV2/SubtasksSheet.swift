@@ -15,8 +15,10 @@ struct SubtasksSheet: View {
             VStack(spacing: 0) {
                 List {
                     ForEach($parentTask.subtasks) { $subtask in
-                        SubtaskRowView(subtask: $subtask, isDarkMode: isDarkMode) {
-                            deleteSubtask(subtask)
+                        SubtaskRowView(subtask: $subtask, isDarkMode: isDarkMode, onUpdate: {
+                            try? EventKitManager.shared.updateTask(parentTask)
+                        }) {
+                            deleteSubtask(subtask.id)
                         }
                         .listRowBackground(AppTheme.surface(.tertiary, isDark: isDarkMode))
                     }
@@ -67,42 +69,25 @@ struct SubtasksSheet: View {
         let trimmed = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         
-        do {
-            let newSubtask = try EventKitManager.shared.addSubtask(title: trimmed, to: parentTask)
-            withAnimation {
-                parentTask.subtasks.append(newSubtask)
-                newSubtaskTitle = ""
-            }
-            // Trigger a reload just in case
-            Task { await EventKitManager.shared.loadData() }
-        } catch {
-            print("Failed to add subtask: \(error)")
+        let newSubtask = AppTask.SubtaskData(title: trimmed, isCompleted: false)
+        withAnimation {
+            parentTask.subtasks.append(newSubtask)
+            newSubtaskTitle = ""
         }
+        try? EventKitManager.shared.updateTask(parentTask)
     }
     
-    private func deleteSubtask(_ subtask: AppTask) {
-        do {
-            let archivedTask = ArchivedTask(
-                title: subtask.title,
-                originalCalendarIdentifier: subtask.reminder.calendar.calendarIdentifier,
-                notes: subtask.notes,
-                dueDate: subtask.dueDate
-            )
-            modelContext.insert(archivedTask)
-            
-            try EventKitManager.shared.deleteTask(subtask)
-            withAnimation {
-                parentTask.subtasks.removeAll { $0.id == subtask.id }
-            }
-        } catch {
-            print("Failed to delete subtask: \(error)")
+    private func deleteSubtask(_ id: UUID) {
+        withAnimation {
+            parentTask.subtasks.removeAll { $0.id == id }
         }
+        try? EventKitManager.shared.updateTask(parentTask)
     }
     
     private func deleteSubtasksAtOffsets(offsets: IndexSet) {
         for index in offsets {
             let subtask = parentTask.subtasks[index]
-            deleteSubtask(subtask)
+            deleteSubtask(subtask.id)
         }
     }
 }

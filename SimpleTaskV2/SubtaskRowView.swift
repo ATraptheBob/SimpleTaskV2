@@ -1,8 +1,9 @@
 import SwiftUI
 
 struct SubtaskRowView: View {
-    @Binding var subtask: AppTask
+    @Binding var subtask: AppTask.SubtaskData
     var isDarkMode: Bool
+    var onUpdate: () -> Void
     var onDelete: () -> Void
 
     var body: some View {
@@ -13,20 +14,20 @@ struct SubtaskRowView: View {
                 .onTapGesture {
                     withAnimation { 
                         subtask.isCompleted.toggle() 
-                        try? EventKitManager.shared.updateTask(subtask)
+                        onUpdate()
                     }
                 }
 
             TextField("Step", text: $subtask.title, onEditingChanged: { isEditing in
                 if !isEditing {
-                    try? EventKitManager.shared.updateTask(subtask)
+                    onUpdate()
                 }
             })
             .font(.subheadline)
             .strikethrough(subtask.isCompleted)
             .foregroundColor(subtask.isCompleted ? .gray : (isDarkMode ? .gray : .black.opacity(0.7)))
             .onSubmit {
-                try? EventKitManager.shared.updateTask(subtask)
+                onUpdate()
             }
 
             Spacer()

@@ -7,6 +7,10 @@ struct MainTabView: View {
     // Global Search State
     @State private var showGlobalSearch = false
     @State private var topDragOffset: CGFloat = 0
+    
+    // Expanded Task State
+    @State private var expandedTaskId: String? = nil
+    @State private var isEditingExpandedTask = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -16,7 +20,7 @@ struct MainTabView: View {
                 ZStack(alignment: .top) {
                     ZStack(alignment: .bottom) {
                         HStack(spacing: 0) {
-                            InboxView()
+                            InboxView(expandedTaskId: $expandedTaskId, isEditingExpandedTask: $isEditingExpandedTask)
                                 .frame(width: geometry.size.width)
                                 .clipped()
                             
@@ -85,9 +89,27 @@ struct MainTabView: View {
             }
             .ignoresSafeArea()
             
-            // Interactive Page Indicator Pill
-            PageIndicatorPill(selectedTab: $selectedTab, totalTabs: 3)
+            // Interactive Page Indicator Pill or Edit Pill
+            if expandedTaskId != nil {
+                Button(action: {
+                    withAnimation {
+                        isEditingExpandedTask.toggle()
+                    }
+                }) {
+                    Text(isEditingExpandedTask ? "Done" : "Edit")
+                        .font(.headline.bold())
+                        .foregroundColor(isEditingExpandedTask ? .green : .white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Color(.systemGray6).opacity(0.8))
+                        .clipShape(Capsule())
+                        .shadow(radius: 4)
+                }
                 .padding(.bottom, 16)
+            } else {
+                PageIndicatorPill(selectedTab: $selectedTab, totalTabs: 3)
+                    .padding(.bottom, 16)
+            }
         }
     }
 }

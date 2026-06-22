@@ -8,6 +8,8 @@ struct SwipeRowModifier: ViewModifier {
 
     @State private var offset: CGFloat = 0
     @State private var triggered = false
+    @State private var dragDirectionDetermined = false
+    @State private var isHorizontalDrag = false
     @AppStorage("isDarkMode") private var isDarkMode = true
 
     private let triggerThreshold: CGFloat = 40
@@ -84,6 +86,13 @@ struct SwipeRowModifier: ViewModifier {
                 .gesture(
                     DragGesture(minimumDistance: 15)
                         .onChanged { value in
+                            if !dragDirectionDetermined {
+                                dragDirectionDetermined = true
+                                isHorizontalDrag = abs(value.translation.width) > abs(value.translation.height) * 1.5
+                            }
+                            
+                            guard isHorizontalDrag else { return }
+                            
                             let drag = value.translation.width
                             offset = drag > 0 ? pow(drag, 0.9) : -pow(-drag, 0.9)
 
@@ -98,6 +107,9 @@ struct SwipeRowModifier: ViewModifier {
                             }
                         }
                         .onEnded { value in
+                            dragDirectionDetermined = false
+                            guard isHorizontalDrag else { return }
+                            
                             withAnimation(.spring(response: 0.3, dampingFraction: 1.0)) {
                                 if offset > triggerThreshold && leftOption != .none {
                                     onLeftSwipe()

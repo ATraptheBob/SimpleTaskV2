@@ -401,7 +401,7 @@ class GeminiManager: ObservableObject {
     
     // MARK: - 9. Weekly Insights
     
-    func generateWeeklyInsights(habits: [HabitItem], sessions: [PomodoroSession]) async throws -> WeeklyInsightsResponse {
+    func generateWeeklyInsights(habits: [ComputedHabit], sessions: [PomodoroSession]) async throws -> WeeklyInsightsResponse {
         if apiKey.isEmpty {
             try await Task.sleep(nanoseconds: 1_000_000_000)
             return WeeklyInsightsResponse(

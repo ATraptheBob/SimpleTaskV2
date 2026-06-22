@@ -1,129 +1,28 @@
 import re
 
-with open('/Users/wilsonlee/Desktop/SimpleTaskV2/SimpleTaskV2/InboxView.swift', 'r') as f:
+with open("InboxView.swift", "r") as f:
     content = f.read()
 
-# Add coordinateSpace to ZStack
-if '.coordinateSpace(name: "Global")' not in content:
-    zstack_idx = content.find("ZStack {")
-    if zstack_idx != -1:
-        # We need to insert .coordinateSpace(name: "Global") at the end of ZStack
-        # Let's just find `NavigationView {` and the corresponding ZStack
-        pass # Actually we can just put coordinateSpace on the DragGesture as .global
+# 1. Remove the GeometryReader dummy item
+geom_reader_regex = r'\s*GeometryReader \{ geo in\s*Color\.clear\.preference\(\s*key: ScrollOffsetKey\.self,\s*value: geo\.frame\(in: \.named\("InboxList"\)\)\.minY\s*\)\s*\}\s*\.frame\(height: 0\)\s*\.listRowInsets\(EdgeInsets\(\)\)\s*\.listRowSeparator\(\.hidden\)\s*\.listRowBackground\(Color\.clear\)'
+content = re.sub(geom_reader_regex, '', content, flags=re.DOTALL)
 
-# Rewrite addButton DragGesture
-old_gesture = """            .simultaneousGesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        if !isPressDown {
-                            isPressDown = true
-                            HapticAndSoundManager.shared.triggerHapticSelection()
-                        }
-                    }
-                    .onEnded { _ in
-                        isPressDown = false
-                        if isVoiceCapturing {
-                            isVoiceCapturing = false
-                            voiceManager.stopRecording()
-                            HapticAndSoundManager.shared.triggerHapticSuccess()
-                            
-                            if !voiceManager.transcribedText.isEmpty && voiceManager.transcribedText != "Listening..." {
-                                processVoiceCapture()
-                            }
-                        } else {
-                            HapticAndSoundManager.shared.triggerHapticSelection()
-                            withAnimation(.spring(response: 0.5, dampingFraction: 0.75, blendDuration: 0)) {
-                                showingAddSheet = true
-                            }
-                        }
-                    }
-            )"""
-
-new_gesture = """            .offset(dragOffset)
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .global)
-                    .onChanged { value in
-                        if !isPressDown {
-                            isPressDown = true
-                            HapticAndSoundManager.shared.triggerHapticSelection()
-                        }
-                        
-                        if !isVoiceCapturing {
-                            let dragThreshold: CGFloat = 10
-                            let translation = CGSize(width: value.translation.width, height: value.translation.height)
-                            
-                            if abs(translation.width) > dragThreshold || abs(translation.height) > dragThreshold || isDraggingToAdd {
-                                isDraggingToAdd = true
-                                dragOffset = translation
-                                
-                                // Check bounds to highlight list
-                                let dragY = value.location.y
-                                var newTarget: String? = nil
-                                for (calId, bounds) in sectionBounds {
-                                    if dragY >= bounds.minY && dragY <= bounds.maxY {
-                                        newTarget = calId
-                                        break
-                                    }
+# 2. Update .autoScroll and remove onPreferenceChange
+autoscroll_regex = r'\.autoScroll\(isScrollingUp: isScrollingUp, isScrollingDown: isScrollingDown\)\s*\.onPreferenceChange\(ScrollOffsetKey\.self\) \{ minY in.*?HapticAndSoundManager\.shared\.triggerHapticSelection\(\)\s*\}\s*\}'
+autoscroll_replacement = """.autoScroll(isScrollingUp: isScrollingUp, isScrollingDown: isScrollingDown) { offset in
+                            if offset < -80 && !showSearchBox {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                    showSearchBox = true
                                 }
-                                
-                                if targetCalendarId != newTarget {
-                                    targetCalendarId = newTarget
-                                    HapticAndSoundManager.shared.triggerHapticSelection()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    isSearchFocused = true
                                 }
-                                
-                                // Auto-scroll logic
-                                let screenHeight = UIScreen.main.bounds.height
-                                if dragY < screenHeight * 0.2 {
-                                    isScrollingUp = true
-                                    isScrollingDown = false
-                                } else if dragY > screenHeight * 0.8 {
-                                    isScrollingUp = false
-                                    isScrollingDown = true
-                                } else {
-                                    isScrollingUp = false
-                                    isScrollingDown = false
-                                }
+                                HapticAndSoundManager.shared.triggerHapticSelection()
                             }
-                        }
-                    }
-                    .onEnded { _ in
-                        isPressDown = false
-                        isScrollingUp = false
-                        isScrollingDown = false
-                        
-                        if isVoiceCapturing {
-                            isVoiceCapturing = false
-                            voiceManager.stopRecording()
-                            HapticAndSoundManager.shared.triggerHapticSuccess()
-                            
-                            if !voiceManager.transcribedText.isEmpty && voiceManager.transcribedText != "Listening..." {
-                                processVoiceCapture()
-                            }
-                        } else {
-                            HapticAndSoundManager.shared.triggerHapticSelection()
-                            
-                            let targetId = targetCalendarId
-                            
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.75, blendDuration: 0)) {
-                                dragOffset = .zero
-                                isDraggingToAdd = false
-                                targetCalendarId = nil
-                            }
-                            
-                            // Present add sheet with pre-selected target
-                            // We need to pass targetId somehow.
-                            // We will use initialCalendarIdentifier
-                            // But AddTaskView needs to be updated in InboxView callsite
-                            withAnimation(.spring(response: 0.5, dampingFraction: 0.75, blendDuration: 0)) {
-                                showingAddSheet = true
-                                // We store the dropped target in a temporary variable to pass to AddTaskView
-                            }
-                        }
-                    }
-            )"""
+                        }"""
+content = re.sub(autoscroll_regex, autoscroll_replacement, content, flags=re.DOTALL)
 
-content = content.replace(old_gesture, new_gesture)
-
-with open('/Users/wilsonlee/Desktop/SimpleTaskV2/SimpleTaskV2/InboxView.swift', 'w') as f:
+with open("InboxView.swift", "w") as f:
     f.write(content)
 
+print("Patch drag applied")

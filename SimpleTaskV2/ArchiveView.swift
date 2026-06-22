@@ -113,7 +113,14 @@ struct ArchiveView: View {
         .contentShape(Rectangle())
         .padding(.vertical, 8)
         .listRowBackground(Color.clear)
-        // You could also add customSwipeActions here if you wanted
+        .customSwipeActions(
+            left: .restore,
+            right: .none,
+            onLeft: {
+                undoCompletedTask(task)
+            },
+            onRight: {}
+        )
     }
     
     private func restoreTask(_ archivedTask: ArchivedTask) {
@@ -150,5 +157,18 @@ struct ArchiveView: View {
             try? modelContext.save()
         }
         HapticAndSoundManager.shared.triggerHapticSelection()
+    }
+    
+    private func undoCompletedTask(_ task: AppTask) {
+        var mutableTask = task
+        mutableTask.isCompleted = false
+        mutableTask.completionDate = nil
+        do {
+            try eventKitManager.updateTask(mutableTask)
+            HapticAndSoundManager.shared.triggerHapticSuccess()
+            Task { await eventKitManager.loadData() }
+        } catch {
+            print("Failed to undo task: \(error)")
+        }
     }
 }

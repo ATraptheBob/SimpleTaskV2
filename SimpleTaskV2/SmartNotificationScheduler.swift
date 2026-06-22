@@ -1,7 +1,7 @@
 import Foundation
 
 struct SmartNotificationScheduler {
-    func schedule(allTasks: [TaskItem], allHabits: [HabitItem], notificationManager: NotificationScheduling) {
+    func schedule(allTasks: [TaskItem], allHabits: [ComputedHabit], notificationManager: NotificationScheduling) {
         let calendar = Calendar.current
 
         // 1. Calculate Active Tasks

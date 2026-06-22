@@ -9,7 +9,7 @@ enum TimeFilter: String, CaseIterable {
 
 struct StatsView: View {
     @StateObject private var eventKitManager = EventKitManager.shared
-    @Query private var habits: [HabitItem]
+    var habits: [ComputedHabit] { eventKitManager.computedHabits }
     @Query private var sessions: [PomodoroSession]
     @AppStorage("isDarkMode") private var isDarkMode = true
     

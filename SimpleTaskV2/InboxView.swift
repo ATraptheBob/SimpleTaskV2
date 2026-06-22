@@ -25,7 +25,6 @@ struct InboxView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var eventKitManager = EventKitManager.shared
     @StateObject private var viewModel = InboxViewModel()
-    @Query private var allHabits: [HabitItem]
     
     @State private var showingAddSheet = false
     @State private var isMenuOpen = false
@@ -35,7 +34,6 @@ struct InboxView: View {
     @State private var morningBriefing: MorningBriefing? = nil
     
     @State private var expandedTaskId: String? = nil
-    @State private var habitToEdit: HabitItem?
     
     // AI States
     @State private var showingAIActions = false
@@ -43,9 +41,7 @@ struct InboxView: View {
     @State private var eveningBriefing: EveningBriefing?
     @State private var showingQuickCapture = false
     @State private var quickCaptureText = ""
-    @State private var searchText = ""
-    @State private var showSearchBox = false
-    @FocusState private var isSearchFocused: Bool
+
     
     // Voice Capture State
     @StateObject private var voiceManager = VoiceCaptureManager()
@@ -86,10 +82,8 @@ struct InboxView: View {
         let now = Date()
         
         let tasks = eventKitManager.reminders.filter { task in
-            if !searchText.isEmpty && !task.title.localizedCaseInsensitiveContains(searchText) {
-                return false
-            }
-
+            if task.isHabit { return false }
+            
             if archiveSetting == "Midnight" {
                 return !task.isCompleted || cal.isDateInToday(task.completionDate ?? Date.distantPast)
             } else if archiveSetting == "24 Hours" {
@@ -110,18 +104,7 @@ struct InboxView: View {
         }
     }
     
-    var dueHabits: [HabitItem] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let weekday = calendar.component(.weekday, from: today)
-        
-        return allHabits.filter { habit in
-            let isScheduledToday = habit.activeDays.contains(weekday) || (habit.activeDays.isEmpty && habit.frequency != RepeatInterval.none)
-            guard isScheduledToday else { return false } // Short-circuit: skip date check if not scheduled
-            let isCompletedToday = habit.completionDates.contains { calendar.isDateInToday($0) }
-            return !isCompletedToday
-        }
-    }
+
 
     private func binding(for task: AppTask) -> Binding<AppTask> {
         Binding(
@@ -133,77 +116,7 @@ struct InboxView: View {
             }
         )
     }
-    @ViewBuilder
-    private func searchOverlay() -> some View {
-        ZStack(alignment: .top) {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        showSearchBox = false
-                        searchText = ""
-                        isSearchFocused = false
-                    }
-                }
-                
-            VStack(spacing: 0) {
-                HStack {
-                    Image(systemName: "magnifyingglass").foregroundColor(.gray)
-                    TextField("Search tasks...", text: $searchText)
-                        .focused($isSearchFocused)
-                        .foregroundColor(isDarkMode ? .white : .black)
-                        
-                    if !searchText.isEmpty {
-                        Button(action: { searchText = "" }) {
-                            Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
-                        }
-                    }
-                    
-                    Button("Cancel") {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            showSearchBox = false
-                            searchText = ""
-                            isSearchFocused = false
-                        }
-                    }
-                    .foregroundColor(AppTheme.accent)
-                    .padding(.leading, 8)
-                }
-                .padding(14)
-                .background(AppTheme.surface(.primary, isDark: isDarkMode))
-                .clipShape(RoundedRectangle(cornerRadius: AppTheme.radiusMedium, style: .continuous))
-                .neutralShadow(radius: 10, y: 5, opacity: 0.1)
-                .padding(.horizontal, 20)
-                .padding(.top, 60)
-                
-                if !searchText.isEmpty {
-                    List {
-                        let matchingTasks = activeTasks
-                        if matchingTasks.isEmpty {
-                            Text("No tasks found")
-                                .foregroundColor(.gray)
-                                .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
-                                .padding(.top, 20)
-                        } else {
-                            ForEach(matchingTasks) { task in
-                                taskRow(for: task)
-                                    .listRowBackground(Color.clear)
-                                    .listRowSeparator(.hidden)
-                            }
-                        }
-                    }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
-                }
-                
-                Spacer()
-            }
-        }
-        .zIndex(15)
-        .transition(.opacity)
-    }
+
 
     var body: some View {
         // PERFORMANCE OPTIMIZATION:
@@ -212,7 +125,7 @@ struct InboxView: View {
         // 4-5 redundant times during high-frequency renders (like when typing in `searchText`).
         // Impact: Reduces CPU work for sorting/filtering by ~80% per keystroke search.
         let currentActiveTasks = activeTasks
-        let currentDueHabits = dueHabits
+        
         let now = Date()
         let overdueCount = currentActiveTasks.filter { !$0.isCompleted && ($0.dueDate ?? Date.distantFuture) < now }.count
 
@@ -260,60 +173,22 @@ struct InboxView: View {
                                 .tint(AppTheme.accent)
                         } else {
                             Button(action: { showingAIActions = true }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "sparkles")
-                                        .font(.subheadline.weight(.semibold))
-                                    Text("AI Actions")
-                                        .font(.subheadline.weight(.semibold))
-                                }
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(
-                                    LinearGradient(gradient: Gradient(colors: [AppTheme.accent, AppTheme.accent.opacity(0.8)]), startPoint: .topLeading, endPoint: .bottomTrailing)
-                                )
-                                .clipShape(Capsule())
+                                Image(systemName: "sparkles")
+                                    .font(.title3.weight(.semibold))
+                                    .foregroundColor(isDarkMode ? .white : .black)
+                                    .padding(.vertical, 8)
+                                    .padding(.leading, 8)
                             }
                         }
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 16)
+                    .contentShape(Rectangle())
                     
-                    // Search Bar
-                    if showSearchBox {
-                        HStack {
-                            Image(systemName: "magnifyingglass").foregroundColor(.gray)
-                            TextField("Search tasks...", text: $searchText)
-                                .focused($isSearchFocused)
-                                .foregroundColor(isDarkMode ? .white : .black)
-                            
-                            if !searchText.isEmpty {
-                                Button(action: { searchText = "" }) {
-                                    Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
-                                }
-                                .accessibilityLabel("Clear search")
-                            }
-                            
-                            Button("Cancel") {
-                                withAnimation(.spring()) {
-                                    showSearchBox = false
-                                    searchText = ""
-                                    isSearchFocused = false
-                                }
-                            }
-                            .foregroundColor(AppTheme.accent)
-                            .padding(.leading, 4)
-                        }
-                        .padding(12)
-                        .background(AppTheme.surface(.secondary, isDark: isDarkMode))
-                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.radiusMedium, style: .continuous))
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 16)
-                        .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity)))
-                    }
+
                     
                     
-                    if currentActiveTasks.isEmpty && currentDueHabits.isEmpty && !isParsingVoiceTask {
+                    if currentActiveTasks.isEmpty && !isParsingVoiceTask {
                         Spacer()
                         VStack(spacing: 12) {
                             Image(systemName: "checkmark.seal.fill").font(.system(size: 50)).foregroundColor(AppTheme.accent.opacity(0.8))
@@ -323,20 +198,10 @@ struct InboxView: View {
                         Spacer()
                     } else {
                         List {
-                            GeometryReader { geo in
-                                Color.clear.preference(
-                                    key: ScrollOffsetKey.self,
-                                    value: geo.frame(in: .named("InboxList")).minY
-                                )
-                            }
-                            .frame(height: 0)
-                            .listRowInsets(EdgeInsets())
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
                             
                             voiceTaskProcessingSection()
                             
-                            habitSections()
+                            
                             
                             calendarSections()
                             
@@ -349,17 +214,7 @@ struct InboxView: View {
                         .listStyle(.plain)
                         .coordinateSpace(name: "InboxList")
                         .autoScroll(isScrollingUp: isScrollingUp, isScrollingDown: isScrollingDown)
-                        .onPreferenceChange(ScrollOffsetKey.self) { minY in
-                            if minY > 80 && !showSearchBox {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                    showSearchBox = true
-                                }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    isSearchFocused = true
-                                }
-                                HapticAndSoundManager.shared.triggerHapticSelection()
-                            }
-                        }
+                        .environment(\.defaultMinListRowHeight, 0)
                         .onPreferenceChange(SectionBoundsKey.self) { bounds in
                             self.sectionBounds = bounds
                         }
@@ -474,10 +329,9 @@ struct InboxView: View {
                     .zIndex(10)
                 }
                 
-                if showSearchBox {
-                    searchOverlay()
-                }
+
             }
+            
             .toolbar(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
@@ -505,9 +359,7 @@ struct InboxView: View {
                 .presentationDetents([.medium, .large])
                 .presentationBackground(.clear)
             }
-            .sheet(item: $habitToEdit) { habit in
-                AddHabitView(habitToEdit: habit).presentationDetents([.large])
-            }
+
             .fullScreenCover(isPresented: Binding(
                 get: { showingEveningApproval && eveningBriefing != nil },
                 set: { if !$0 { showingEveningApproval = false } }
@@ -824,16 +676,7 @@ struct InboxView: View {
         }
     }
 
-    @ViewBuilder
-    private func habitSections() -> some View {
-        if !dueHabits.isEmpty {
-            Section {
-                ForEach(dueHabits) { habit in
-                    habitRow(for: habit)
-                }
-            }
-        }
-    }
+
 
     @ViewBuilder
     private func editListRow(for calendar: EKCalendar, calId: String) -> some View {
@@ -906,53 +749,7 @@ struct InboxView: View {
         }
     }
 
-    @ViewBuilder
-    private func habitRow(for habit: HabitItem) -> some View {
-        VStack(spacing: 0) {
-            HStack {
-                let isCompletedToday = habit.completionDates.contains { Calendar.current.isDateInToday($0) }
-                Image(systemName: isCompletedToday ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(isCompletedToday ? AppTheme.matteAmber : .gray)
-                    .font(.title2)
-                    .contentShape(Circle())
-                    .onTapGesture { toggleHabit(habit) }
-                
-                HStack {
-                    Text(habit.title).foregroundColor(isDarkMode ? .white : .black)
-                    Spacer()
-                    
-                    if habit.streak > 0 {
-                        HStack(spacing: 4) {
-                            Text("\(habit.streak)")
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundColor(AppTheme.matteAmber)
-                            Image(systemName: "flame.fill").foregroundColor(AppTheme.matteAmber).font(.caption)
-                        }
-                    }
-                }
-                .contentShape(Rectangle())
-                .onTapGesture { habitToEdit = habit }
-            }
-            .padding(.vertical, 14)
-            .padding(.horizontal, 16)
-            .customSwipeActions(
-                left: leftSwipeAction,
-                right: rightSwipeAction,
-                onLeft: { handleHabitSwipe(option: leftSwipeAction, habit: habit) },
-                onRight: { handleHabitSwipe(option: rightSwipeAction, habit: habit) }
-            )
-            .padding(.horizontal, 12)
-            .padding(.vertical, 4)
-            
-            Divider()
-                .padding(.horizontal, 16)
-
-        }
-        .listRowInsets(EdgeInsets())
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-    }
+    
 
     @ViewBuilder
     private func taskRow(for task: AppTask) -> some View {
@@ -1319,24 +1116,7 @@ struct InboxView: View {
         }
     }
     
-    private func toggleHabit(_ habit: HabitItem) {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let isCompletedToday = habit.completionDates.contains { calendar.isDateInToday($0) }
-        
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-            if isCompletedToday {
-                habit.completionDates.removeAll { calendar.isDate($0, equalTo: today, toGranularity: .day) }
-                habit.updateStreak()
-                hapticSound.triggerHapticSelection(); hapticSound.playSuccessSound()
-            } else {
-                habit.completionDates.append(Date())
-                habit.updateStreak()
-                hapticSound.triggerHapticSuccess(); hapticSound.playCompleteSound()
-            }
-            try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines()
-        }
-    }
+    
     
     private func handleTaskSwipe(option: SwipeOption, task: AppTask) {
         switch option {
@@ -1373,16 +1153,7 @@ struct InboxView: View {
         }
     }
     
-    private func handleHabitSwipe(option: SwipeOption, habit: HabitItem) {
-        switch option {
-        case .edit: habitToEdit = habit
-        case .delete: withAnimation { modelContext.delete(habit); try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines() }
-        case .toggle: toggleHabit(habit)
-        case .date: break
-        case .restore: break
-        case .none: break
-        }
-    }
+    
 
 }
 

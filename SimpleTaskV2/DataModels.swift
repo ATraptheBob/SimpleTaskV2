@@ -143,53 +143,90 @@ struct AppTask: Identifiable {
         get { metadataDict?["urgent"] == "true" }
         set { setMetadata(key: "urgent", value: newValue ? "true" : nil) }
     }
-}
-
-@Model
-final class HabitItem {
-    @Attribute(.unique) var id: UUID = UUID()
-    var title: String
-    var frequency: RepeatInterval?
-    var completionDates: [Date] = []
     
-    var activeDays: [Int] = []
-    
-    var streak: Int = 0
-
-    func updateStreak() {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let pastCompletions = completionDates.map { calendar.startOfDay(for: $0) }.sorted(by: >)
-        guard let latestCompletion = pastCompletions.first else {
-            streak = 0
-            return
-        }
-        
-        let daysSinceLast = calendar.dateComponents([.day], from: latestCompletion, to: today).day ?? 0
-        if daysSinceLast > 1 {
-            streak = 0
-            return
-        }
-        
-        var currentStreak = 0
-        var expectedDate = latestCompletion
-        for date in pastCompletions {
-            if date == expectedDate {
-                currentStreak += 1
-                expectedDate = calendar.date(byAdding: .day, value: -1, to: expectedDate)!
-            } else { break }
-        }
-        streak = currentStreak
+    var habitID: String? {
+        get { metadataDict?["habitID"] }
+        set { setMetadata(key: "habitID", value: newValue) }
     }
     
-    init(title: String, frequency: RepeatInterval = .daily) {
-        self.title = title
-        self.frequency = frequency
+    var isHabit: Bool {
+        get { metadataDict?["isHabit"] == "true" }
+        set { setMetadata(key: "isHabit", value: newValue ? "true" : nil) }
+    }
+    
+    var habitFrequency: RepeatInterval? {
+        get { 
+            if let freqStr = metadataDict?["habitFrequency"] {
+                return RepeatInterval(rawValue: freqStr)
+            }
+            return nil
+        }
+        set { setMetadata(key: "habitFrequency", value: newValue?.rawValue) }
+    }
+    
+    var activeDays: [Int] {
+        get {
+            if let daysStr = metadataDict?["activeDays"],
+               let data = daysStr.data(using: .utf8),
+               let days = try? JSONDecoder().decode([Int].self, from: data) {
+                return days
+            }
+            return []
+        }
+        set {
+            if newValue.isEmpty {
+                setMetadata(key: "activeDays", value: nil)
+            } else if let data = try? JSONEncoder().encode(newValue),
+                      let str = String(data: data, encoding: .utf8) {
+                setMetadata(key: "activeDays", value: str)
+            }
+        }
+    }
+}
+
+struct ComputedHabit: Identifiable, Equatable {
+    var id: String { habitID }
+    var habitID: String
+    var title: String
+    var frequency: RepeatInterval
+    var activeDays: [Int]
+    var completionDates: [Date]
+    var incompleteTask: AppTask?
+    var alarmTime: Date?
+
+    var streak: Int {
+        let calendar = Calendar.current
+        var currentStreak = 0
+        let checkDate = calendar.startOfDay(for: Date())
+        let completions = Set(completionDates.map { calendar.startOfDay(for: $0) })
+        
+        var currentDay = checkDate
+        var currentWeekday = calendar.component(.weekday, from: currentDay)
+
+        for i in 0..<365 {
+            defer {
+                currentDay = calendar.date(byAdding: .day, value: -1, to: currentDay) ?? currentDay
+                currentWeekday = currentWeekday == 1 ? 7 : currentWeekday - 1
+            }
+
+            let isCompleted = completions.contains(currentDay)
+            
+            if activeDays.contains(currentWeekday) {
+                if isCompleted { currentStreak += 1 }
+                else {
+                    if i == 0 { continue }
+                    else { break }
+                }
+            } else {
+                if isCompleted { currentStreak += 1 }
+            }
+        }
+        return currentStreak
     }
     
     var isDone: Bool {
         let cal = Calendar.current
-        let freq = frequency ?? .daily
+        let freq = frequency
         if freq == .none { return false }
         guard let latestCompletion = completionDates.max() else { return false }
         switch freq {
@@ -198,6 +235,14 @@ final class HabitItem {
         case .monthly: return cal.isDate(latestCompletion, equalTo: Date(), toGranularity: .month)
         case .none: return false
         }
+    }
+    
+    static func == (lhs: ComputedHabit, rhs: ComputedHabit) -> Bool {
+        return lhs.habitID == rhs.habitID &&
+               lhs.title == rhs.title &&
+               lhs.frequency == rhs.frequency &&
+               lhs.activeDays == rhs.activeDays &&
+               lhs.completionDates == rhs.completionDates
     }
 }
 

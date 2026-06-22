@@ -40,7 +40,7 @@ struct Provider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
         Task { @MainActor in
             do {
-                let schema = Schema([HabitItem.self, PomodoroSession.self, QueuedTaskAction.self])
+                let schema = Schema([PomodoroSession.self, QueuedTaskAction.self])
                 guard let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2") else {
                     throw URLError(.badURL)
                 }
@@ -56,9 +56,7 @@ struct Provider: TimelineProvider {
                 let topTasks = Array(activeTasks.prefix(3))
                 
                 // Fetch Habits
-                let descriptorHabits = FetchDescriptor<HabitItem>()
-                let allHabits = (try? container.mainContext.fetch(descriptorHabits)) ?? []
-                let dueHabitsCount = allHabits.filter { !isHabitDone($0) }.count
+                let dueHabitsCount = 0
                 
                 let entry = SimpleEntry(date: Date(), pendingTasksCount: activeTasks.count, pendingHabitsCount: dueHabitsCount, topTasks: Array(topTasks))
                 
@@ -73,19 +71,8 @@ struct Provider: TimelineProvider {
             }
         }
     }
-    
-    private func isHabitDone(_ habit: HabitItem) -> Bool {
-        let cal = Calendar.current
-        return habit.completionDates.contains { date in
-            switch habit.frequency ?? .daily {
-            case .daily: return cal.isDateInToday(date)
-            case .weekly: return cal.isDate(date, equalTo: Date(), toGranularity: .weekOfYear)
-            case .monthly: return cal.isDate(date, equalTo: Date(), toGranularity: .month)
-            case .none: return false
-            }
-        }
-    }
 }
+
 
 // ---------------------------------------------------------
 // 4. THE UI DESIGN
@@ -279,7 +266,7 @@ struct ToggleTaskIntent: AppIntent {
     
     func perform() async throws -> some IntentResult {
         do {
-            let schema = Schema([HabitItem.self, PomodoroSession.self, QueuedTaskAction.self])
+            let schema = Schema([PomodoroSession.self, QueuedTaskAction.self])
             guard let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2") else {
                 return .result()
             }
@@ -297,58 +284,6 @@ struct ToggleTaskIntent: AppIntent {
     }
 }
 
-struct ToggleHabitIntent: AppIntent {
-    static var title: LocalizedStringResource = "Toggle Habit"
-    
-    @Parameter(title: "Habit ID")
-    var habitIDString: String
-    
-    init() {}
-    init(habitID: String) { self.habitIDString = habitID }
-    
-    func perform() async throws -> some IntentResult {
-        do {
-            let schema = Schema([HabitItem.self, PomodoroSession.self, QueuedTaskAction.self])
-            guard let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2") else {
-                return .result()
-            }
-            let databaseURL = sharedFolderURL.appendingPathComponent("SimpleTaskDatabase.sqlite")
-            let config = ModelConfiguration(url: databaseURL)
-            let container = try ModelContainer(for: schema, configurations: config)
-            
-            let context = ModelContext(container)
-            let descriptor = FetchDescriptor<HabitItem>()
-            let habits = try context.fetch(descriptor)
-            
-            if let uuid = UUID(uuidString: habitIDString), let habit = habits.first(where: { $0.id == uuid }) {
-                let cal = Calendar.current
-                let freq = habit.frequency ?? .daily
-                var isDone = false
-                
-                if let latest = habit.completionDates.max() {
-                    switch freq {
-                    case .daily: isDone = cal.isDateInToday(latest)
-                    case .weekly: isDone = cal.isDate(latest, equalTo: Date(), toGranularity: .weekOfYear)
-                    case .monthly: isDone = cal.isDate(latest, equalTo: Date(), toGranularity: .month)
-                    case .none: isDone = false
-                    }
-                }
-                
-                if isDone {
-                    if let latest = habit.completionDates.max() {
-                        habit.completionDates.removeAll(where: { $0 == latest })
-                    }
-                } else {
-                    habit.completionDates.append(Date())
-                }
-                habit.updateStreak()
-                try context.save()
-            }
-        } catch {
-        }
-        return .result()
-    }
-}
 
 struct ToggleTimerIntent: AppIntent {
     static var title: LocalizedStringResource = "Toggle Timer"

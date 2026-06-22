@@ -369,6 +369,14 @@ struct AddTaskView: View {
             if let selectedCalendar = selectedCalendar {
                 task.reminder.calendar = selectedCalendar
             }
+            
+            if let finalDate = finalDate {
+                task.reminder.alarms = [EKAlarm(absoluteDate: finalDate)]
+                if isUrgent { task.reminder.priority = Int(EKReminderPriority.high.rawValue) }
+            } else {
+                task.reminder.alarms = nil
+            }
+            
             try? eventKitManager.updateTask(task)
             NotificationManager.shared.scheduleTaskReminders(task: task)
         } else {
@@ -380,6 +388,10 @@ struct AddTaskView: View {
             if let finalDate = finalDate {
                 let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: finalDate)
                 reminder.dueDateComponents = components
+                reminder.alarms = [EKAlarm(absoluteDate: finalDate)]
+                if isUrgent { reminder.priority = Int(EKReminderPriority.high.rawValue) }
+            } else {
+                reminder.alarms = nil
             }
             var newTask = AppTask(reminder: reminder)
             newTask.isUrgent = isUrgent

@@ -2,15 +2,6 @@ import SwiftUI
 import SwiftData
 import GoogleSignIn
 
-/// Defers view initialization until the view actually appears on screen.
-/// Prevents SwiftUI TabView from eagerly constructing all tab bodies at launch.
-struct LazyView<Content: View>: View {
-    let build: () -> Content
-    init(_ build: @autoclosure @escaping () -> Content) {
-        self.build = build
-    }
-    var body: Content { build() }
-}
 
 @main
 struct SimpleTaskV2App: App {
@@ -26,7 +17,7 @@ struct SimpleTaskV2App: App {
     
     init() {
         do {
-            let schema = Schema([HabitItem.self, PomodoroSession.self, QueuedTaskAction.self, ArchivedTask.self])
+            let schema = Schema([PomodoroSession.self, QueuedTaskAction.self, ArchivedTask.self])
             guard let sharedFolderURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.wilsonlee.SimpleTaskV2") else {
                 fatalError("Could not find App Group folder.")
             }
@@ -115,27 +106,8 @@ struct SimpleTaskV2App: App {
     }
     
     private func scheduleSmartNotifications() {
-        let context = ModelContext(container)
-        // Task logic temporarily disabled pending EventKit integration
         let allTasks: [TaskItem] = [] 
-        let allHabits = (try? context.fetch(FetchDescriptor<HabitItem>())) ?? []
-        for habit in allHabits {
-            habit.updateStreak()
-        }
-
-        let calendar = Calendar.current
-        let now = Date()
-        _ = allHabits.filter { habit in
-            let freq = habit.frequency ?? .daily
-            if freq == .none { return true }
-            guard let latestCompletion = habit.completionDates.max() else { return true }
-            switch freq {
-            case .daily: return !calendar.isDateInToday(latestCompletion)
-            case .weekly: return !calendar.isDate(latestCompletion, equalTo: now, toGranularity: .weekOfYear)
-            case .monthly: return !calendar.isDate(latestCompletion, equalTo: now, toGranularity: .month)
-            case .none: return true
-            }
-        }
+        let allHabits = EventKitManager.shared.computedHabits
         
         let scheduler = SmartNotificationScheduler()
         scheduler.schedule(allTasks: allTasks, allHabits: allHabits, notificationManager: NotificationManager.shared)

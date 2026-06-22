@@ -206,4 +206,144 @@ class EventKitManager: ObservableObject {
         let events = store.events(matching: predicate)
         return events
     }
+    
+    // MARK: - Habits
+    
+    var computedHabits: [ComputedHabit] {
+        var grouped: [String: [AppTask]] = [:]
+        for reminder in reminders where reminder.isHabit {
+            if let habitID = reminder.habitID {
+                grouped[habitID, default: []].append(reminder)
+            }
+        }
+        
+        var results: [ComputedHabit] = []
+        for (habitID, tasks) in grouped {
+            let sortedTasks = tasks.sorted {
+                ($0.dueDate ?? Date.distantPast) > ($1.dueDate ?? Date.distantPast)
+            }
+            guard let primaryTask = sortedTasks.first else { continue }
+            
+            let completions = tasks.filter { $0.isCompleted }.compactMap { $0.completionDate }
+            let incompleteTask = sortedTasks.first { !$0.isCompleted }
+            
+            let taskToUse = incompleteTask ?? primaryTask
+            var alarmTime: Date? = nil
+            if taskToUse.reminder.alarms?.isEmpty == false {
+                alarmTime = taskToUse.dueDate
+            }
+            
+            let habit = ComputedHabit(
+                habitID: habitID,
+                title: primaryTask.title,
+                frequency: primaryTask.habitFrequency ?? .daily,
+                activeDays: primaryTask.activeDays,
+                completionDates: completions,
+                incompleteTask: taskToUse,
+                alarmTime: alarmTime
+            )
+            results.append(habit)
+        }
+        return results.sorted { $0.title < $1.title }
+    }
+    
+    func addOrUpdateHabit(
+        habitID: String? = nil,
+        title: String,
+        frequency: RepeatInterval,
+        activeDays: [Int],
+        alarmTime: Date? = nil,
+        commit: Bool = true
+    ) throws {
+        let id = habitID ?? UUID().uuidString
+        
+        var task: AppTask
+        if let existing = reminders.first(where: { $0.habitID == id && !$0.isCompleted }) {
+            task = existing
+        } else {
+            let reminder = EKReminder(eventStore: store)
+            reminder.calendar = store.defaultCalendarForNewReminders()
+            task = AppTask(reminder: reminder)
+            task.dueDate = Calendar.current.startOfDay(for: Date())
+        }
+        
+        task.title = title
+        task.isHabit = true
+        task.habitID = id
+        task.habitFrequency = frequency
+        task.activeDays = activeDays
+        
+        let cal = Calendar.current
+        if let alarmTime = alarmTime {
+            let hour = cal.component(.hour, from: alarmTime)
+            let minute = cal.component(.minute, from: alarmTime)
+            var currentDue = task.dueDate ?? cal.startOfDay(for: Date())
+            currentDue = cal.date(bySettingHour: hour, minute: minute, second: 0, of: cal.startOfDay(for: currentDue)) ?? currentDue
+            task.dueDate = currentDue
+            
+            task.reminder.alarms = [EKAlarm(relativeOffset: 0)]
+            task.reminder.priority = Int(EKReminderPriority.high.rawValue)
+        } else {
+            if let currentDue = task.dueDate {
+                task.dueDate = cal.startOfDay(for: currentDue)
+            }
+            task.reminder.alarms = nil
+            task.reminder.priority = Int(EKReminderPriority.none.rawValue)
+        }
+        
+        let recurrenceRule: EKRecurrenceRule
+        switch frequency {
+        case .daily:
+            if activeDays.count == 7 {
+                recurrenceRule = EKRecurrenceRule(recurrenceWith: .daily, interval: 1, end: nil)
+            } else {
+                let daysOfTheWeek = activeDays.map { EKRecurrenceDayOfWeek(EKWeekday(rawValue: $0) ?? .sunday) }
+                recurrenceRule = EKRecurrenceRule(recurrenceWith: .weekly, interval: 1, daysOfTheWeek: daysOfTheWeek, daysOfTheMonth: nil, monthsOfTheYear: nil, weeksOfTheYear: nil, daysOfTheYear: nil, setPositions: nil, end: nil)
+            }
+        case .weekly:
+            recurrenceRule = EKRecurrenceRule(recurrenceWith: .weekly, interval: 1, end: nil)
+        case .monthly:
+            recurrenceRule = EKRecurrenceRule(recurrenceWith: .monthly, interval: 1, end: nil)
+        case .none:
+            task.reminder.recurrenceRules = nil
+            try updateTask(task, commit: commit)
+            return
+        }
+        
+        task.reminder.recurrenceRules = [recurrenceRule]
+        try updateTask(task, commit: commit)
+    }
+
+    func deleteHabit(habitID: String) throws {
+        let tasksToDelete = reminders.filter { $0.habitID == habitID }
+        for task in tasksToDelete {
+            try store.remove(task.reminder, commit: false)
+        }
+        try store.commit()
+        DispatchQueue.main.async {
+            self.reminders.removeAll(where: { $0.habitID == habitID })
+        }
+    }
+    
+    func toggleHabitCompletion(habitID: String) throws {
+        let habitTasks = reminders.filter { $0.habitID == habitID }
+        let calendar = Calendar.current
+        
+        if let completedToday = habitTasks.first(where: { $0.isCompleted && calendar.isDateInToday($0.completionDate ?? Date.distantPast) }) {
+            try store.remove(completedToday.reminder, commit: false)
+            if var incomplete = habitTasks.first(where: { !$0.isCompleted }) {
+                incomplete.dueDate = completedToday.dueDate ?? Date()
+                try updateTask(incomplete, commit: true)
+            } else {
+                try store.commit()
+            }
+            DispatchQueue.main.async {
+                self.reminders.removeAll(where: { $0.id == completedToday.id })
+            }
+        } else if var incomplete = habitTasks.first(where: { !$0.isCompleted }) {
+            incomplete.isCompleted = true
+            incomplete.completionDate = Date()
+            try updateTask(incomplete, commit: true)
+        }
+    }
 }

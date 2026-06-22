@@ -3,50 +3,84 @@ import SwiftUI
 struct MainTabView: View {
     @State private var selectedTab = 0
     @State private var dragOffset: CGFloat = 0
+    
+    // Global Search State
+    @State private var showGlobalSearch = false
+    @State private var topDragOffset: CGFloat = 0
 
     var body: some View {
         ZStack(alignment: .bottom) {
             Color.black.ignoresSafeArea()
             
             GeometryReader { geometry in
-                ZStack(alignment: .bottom) {
-                    HStack(spacing: 0) {
-                        InboxView()
-                            .frame(width: geometry.size.width)
-                            .clipped()
-                        
-                        LazyView(HabitsView())
-                            .frame(width: geometry.size.width)
-                            .clipped()
-                        
-                        LazyView(TimerView())
-                            .frame(width: geometry.size.width)
-                            .clipped()
-                    }
-                    .offset(x: -CGFloat(selectedTab) * geometry.size.width + dragOffset)
-                    .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.8), value: dragOffset)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selectedTab)
-                    
-                    // Invisible overlay to catch edge swipes using UIKit
-                    EdgeSwipeController { translation in
-                        // Apply resistance if trying to swipe past the ends
-                        if (selectedTab == 0 && translation > 0) || (selectedTab == 2 && translation < 0) {
-                            dragOffset = translation * 0.3
-                        } else {
-                            dragOffset = translation
+                ZStack(alignment: .top) {
+                    ZStack(alignment: .bottom) {
+                        HStack(spacing: 0) {
+                            InboxView()
+                                .frame(width: geometry.size.width)
+                                .clipped()
+                            
+                            HabitsView()
+                                .frame(width: geometry.size.width)
+                                .clipped()
+                            
+                            TimerView()
+                                .frame(width: geometry.size.width)
+                                .clipped()
                         }
-                    } onDragEnded: { translation in
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                            let threshold = geometry.size.width * 0.3
-                            if translation < -threshold && selectedTab < 2 {
-                                selectedTab += 1
-                            } else if translation > threshold && selectedTab > 0 {
-                                selectedTab -= 1
+                        .frame(width: geometry.size.width, alignment: .leading)
+                        .offset(x: -CGFloat(selectedTab) * geometry.size.width + dragOffset)
+                        .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.8), value: dragOffset)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selectedTab)
+                        
+                        // Invisible overlay to catch edge swipes using UIKit
+                        EdgeSwipeController { translation in
+                            // Apply resistance if trying to swipe past the ends
+                            if (selectedTab == 0 && translation > 0) || (selectedTab == 2 && translation < 0) {
+                                dragOffset = translation * 0.3
+                            } else {
+                                dragOffset = translation
                             }
-                            dragOffset = 0
+                        } onDragEnded: { translation in
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                let threshold = geometry.size.width * 0.3
+                                if translation < -threshold && selectedTab < 2 {
+                                    selectedTab += 1
+                                } else if translation > threshold && selectedTab > 0 {
+                                    selectedTab -= 1
+                                }
+                                dragOffset = 0
+                            }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    .frame(width: geometry.size.width)
+                    
+                    TopPanGestureController { translation in
+                        topDragOffset = translation
+                    } onDragEnded: { translation in
+                        if translation > 60 {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                showGlobalSearch = true
+                                topDragOffset = 0
+                            }
+                        } else {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                topDragOffset = 0
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    
+                    if showGlobalSearch {
+                        GlobalSearchView(isPresented: $showGlobalSearch)
+                            .transition(.opacity)
+                            .zIndex(100)
+                    } else if topDragOffset > 0 {
+                        Color.black.opacity(Double(min(topDragOffset / 200.0, 0.5)))
+                            .ignoresSafeArea()
+                            .zIndex(99)
+                    }
                 }
             }
             .ignoresSafeArea()

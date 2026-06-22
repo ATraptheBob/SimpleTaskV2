@@ -2,15 +2,16 @@ import SwiftUI
 import SwiftData
 
 struct AddHabitView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @AppStorage("isDarkMode") private var isDarkMode = true
     
     @State private var title = ""
     @State private var frequency: RepeatInterval = .daily
     @State private var activeDays: Set<Int> = [1, 2, 3, 4, 5, 6, 7]
+    @State private var enableAlarm = false
+    @State private var alarmTime = Date()
     
-    var habitToEdit: HabitItem?
+    var habitToEdit: ComputedHabit?
     
     let daysOfWeek = [
         (1, "S"), (2, "M"), (3, "T"), (4, "W"), (5, "T"), (6, "F"), (7, "S")
@@ -34,15 +35,21 @@ struct AddHabitView: View {
                 Button("Save") {
                     HapticAndSoundManager.shared.triggerHapticSuccess()
                     if let existingHabit = habitToEdit {
-                        existingHabit.title = title
-                        existingHabit.frequency = frequency
-                        existingHabit.activeDays = Array(activeDays).sorted()
+                        try? EventKitManager.shared.addOrUpdateHabit(
+                            habitID: existingHabit.habitID,
+                            title: title,
+                            frequency: frequency,
+                            activeDays: Array(activeDays).sorted(),
+                            alarmTime: enableAlarm ? alarmTime : nil
+                        )
                     } else {
-                        let newHabit = HabitItem(title: title, frequency: frequency)
-                        newHabit.activeDays = Array(activeDays).sorted()
-                        modelContext.insert(newHabit)
+                        try? EventKitManager.shared.addOrUpdateHabit(
+                            title: title,
+                            frequency: frequency,
+                            activeDays: Array(activeDays).sorted(),
+                            alarmTime: enableAlarm ? alarmTime : nil
+                        )
                     }
-                    try? modelContext.save()
                     dismiss()
                 }
                 .foregroundColor(AppTheme.accent)
@@ -97,6 +104,17 @@ struct AddHabitView: View {
                     }
                     .listRowBackground(AppTheme.surface(.tertiary, isDark: isDarkMode))
                 }
+                
+                Section(header: Text("Notification").foregroundColor(isDarkMode ? .gray : .secondary)) {
+                    Toggle("Enable Alarm", isOn: $enableAlarm)
+                        .tint(AppTheme.accent)
+                    
+                    if enableAlarm {
+                        DatePicker("Alarm Time", selection: $alarmTime, displayedComponents: .hourAndMinute)
+                            .datePickerStyle(.compact)
+                    }
+                }
+                .listRowBackground(AppTheme.surface(.tertiary, isDark: isDarkMode))
             }
             .scrollContentBackground(.hidden)
         }
@@ -108,8 +126,12 @@ struct AddHabitView: View {
         .onAppear {
             if let existingHabit = habitToEdit {
                 title = existingHabit.title
-                frequency = existingHabit.frequency ?? .daily
+                frequency = existingHabit.frequency
                 activeDays = Set(existingHabit.activeDays)
+                if let existingAlarm = existingHabit.alarmTime {
+                    enableAlarm = true
+                    alarmTime = existingAlarm
+                }
             }
         }
     }

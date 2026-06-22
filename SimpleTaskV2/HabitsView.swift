@@ -11,21 +11,21 @@ struct MonthData: Identifiable, Equatable {
 }
 
 struct HabitsView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var habits: [HabitItem]
+    @StateObject private var eventKitManager = EventKitManager.shared
+    var habits: [ComputedHabit] { eventKitManager.computedHabits }
     
     @AppStorage("isDarkMode") private var isDarkMode = true
     @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .edit
     @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
     
     @State private var showingAddSheet = false
-    @State private var habitToEdit: HabitItem?
+    @State private var habitToEdit: ComputedHabit?
     
     @State private var selectedMonthIndex: Int = 11
 
-    var dailyHabits: [HabitItem] { habits.filter { $0.frequency == .daily } }
-    var weeklyHabits: [HabitItem] { habits.filter { $0.frequency == .weekly } }
-    var monthlyHabits: [HabitItem] { habits.filter { $0.frequency == .monthly } }
+    var dailyHabits: [ComputedHabit] { habits.filter { $0.frequency == .daily } }
+    var weeklyHabits: [ComputedHabit] { habits.filter { $0.frequency == .weekly } }
+    var monthlyHabits: [ComputedHabit] { habits.filter { $0.frequency == .monthly } }
 
     var body: some View {
         NavigationStack {
@@ -77,23 +77,23 @@ struct HabitsView: View {
 
 // --- 2. DYNAMIC DASHBOARD PANEL ---
 struct HabitDashboardPanel: View {
-    var habits: [HabitItem]
+    var habits: [ComputedHabit]
     var isDarkMode: Bool
     @Binding var selectedMonthIndex: Int
     
     @State private var months: [MonthData] = []
     
     // Build once and pass through — avoids rebuilding the cache per access
-    private func buildCompletionsCache() -> [UUID: Set<Date>] {
+    private func buildCompletionsCache() -> [String: Set<Date>] {
         let calendar = Calendar.current
-        var cache: [UUID: Set<Date>] = [:]
+        var cache: [String: Set<Date>] = [:]
         for habit in habits {
             cache[habit.id] = Set(habit.completionDates.map { calendar.startOfDay(for: $0) })
         }
         return cache
     }
 
-    private func dailyCompletions(cache: [UUID: Set<Date>]) -> [Date: Int] {
+    private func dailyCompletions(cache: [String: Set<Date>]) -> [Date: Int] {
         var counts: [Date: Int] = [:]
         for habit in habits {
             let days = cache[habit.id] ?? []
@@ -102,7 +102,7 @@ struct HabitDashboardPanel: View {
         return counts
     }
 
-    private func getMonthlyStats(completions: [Date: Int], cache: [UUID: Set<Date>]) -> (total: Int, bestStreak: Int, dailyAvg: Double) {
+    private func getMonthlyStats(completions: [Date: Int], cache: [String: Set<Date>]) -> (total: Int, bestStreak: Int, dailyAvg: Double) {
         guard !months.isEmpty, selectedMonthIndex < months.count else { return (0, 0, 0) }
         let currentMonth = months[selectedMonthIndex]
         let calendar = Calendar.current
@@ -110,7 +110,7 @@ struct HabitDashboardPanel: View {
         let monthDates = currentMonth.dates.filter { calendar.isDate($0, equalTo: currentMonth.monthStart, toGranularity: .month) }
 
         // DYNAMIC ACCURACY: Precompute active habits by weekday to avoid O(Days * Habits) redundant iterations
-        var activeHabitsByWeekday: [Int: [HabitItem]] = [:]
+        var activeHabitsByWeekday: [Int: [ComputedHabit]] = [:]
         for weekday in 1...7 {
             activeHabitsByWeekday[weekday] = habits.filter { $0.activeDays.contains(weekday) }
         }
@@ -309,14 +309,13 @@ struct StatRow: View {
 }
 
 struct HabitSection: View {
-    @Environment(\.modelContext) private var modelContext
     @AppStorage("leftSwipeAction") private var leftSwipeAction: SwipeOption = .edit
     @AppStorage("rightSwipeAction") private var rightSwipeAction: SwipeOption = .delete
     
-    let title: String; let habits: [HabitItem]; let editAction: (HabitItem) -> Void; let isDarkMode: Bool
+    let title: String; let habits: [ComputedHabit]; let editAction: (ComputedHabit) -> Void; let isDarkMode: Bool
     private let hapticSound = HapticAndSoundManager.shared
     
-    @State private var expandedHabitID: PersistentIdentifier? = nil
+    @State private var expandedHabitID: String? = nil
     
     var body: some View {
         if !habits.isEmpty {
@@ -353,7 +352,7 @@ struct HabitSection: View {
                                         .strikethrough(isCompleted(habit))
                                     Spacer()
                                     HStack(spacing: 4) {
-                                        Text("\(currentStreak(for: habit))").font(.system(size: 14, weight: .bold, design: .rounded))
+                                        Text("\(habit.streak)").font(.system(size: 14, weight: .bold, design: .rounded))
                                         Image(systemName: "flame.fill").font(.system(size: 12))
                                     }
                                     .foregroundColor(isCompleted(habit) ? .gray.opacity(0.6) : AppTheme.matteAmber)
@@ -378,9 +377,15 @@ struct HabitSection: View {
                                         .onTapGesture {
                                             hapticSound.triggerHapticSelection()
                                             withAnimation {
-                                                if isActive { habit.activeDays.removeAll { $0 == dayInt } }
-                                                else { habit.activeDays.append(dayInt) }
-                                                try? modelContext.save()
+                                                var updatedActive = habit.activeDays
+                                                if isActive { updatedActive.removeAll { $0 == dayInt } }
+                                                else { updatedActive.append(dayInt) }
+                                                try? EventKitManager.shared.addOrUpdateHabit(
+                                                    habitID: habit.habitID,
+                                                    title: habit.title,
+                                                    frequency: habit.frequency,
+                                                    activeDays: updatedActive
+                                                )
                                                 WidgetCenter.shared.reloadAllTimelines()
                                             }
                                         }
@@ -417,70 +422,33 @@ struct HabitSection: View {
             }
         }
     }
+
+
     
-    // FLAWLESS STREAK LOGIC: Ignores deselected days so your streak never breaks unfairly!
-    private func currentStreak(for habit: HabitItem) -> Int {
-        let calendar = Calendar.current
-        var streak = 0
-        let checkDate = calendar.startOfDay(for: Date())
-        let completions = Set(habit.completionDates.map { calendar.startOfDay(for: $0) })
-        let activeDays = habit.activeDays
-        
-        var currentDay = checkDate
-        var currentWeekday = calendar.component(.weekday, from: currentDay)
-
-        for i in 0..<365 {
-            defer {
-                currentDay = calendar.date(byAdding: .day, value: -1, to: currentDay) ?? currentDay
-                currentWeekday = currentWeekday == 1 ? 7 : currentWeekday - 1
-            }
-
-            let isCompleted = completions.contains(currentDay)
-            
-            if activeDays.contains(currentWeekday) {
-                if isCompleted { streak += 1 }
-                else {
-                    if i == 0 { continue } // Missing today hasn't broken it yet
-                    else { break } // Missing an active past day breaks it
-                }
-            } else {
-                if isCompleted { streak += 1 } // Bonus points if you do it on a day off!
-                // If not completed, it doesn't break because it wasn't scheduled.
-            }
-        }
-        return streak
+    private func isCompleted(_ habit: ComputedHabit) -> Bool {
+        return habit.isDone
     }
     
-    private func isCompleted(_ habit: HabitItem) -> Bool {
-        let calendar = Calendar.current
-        return habit.completionDates.contains { calendar.isDateInToday($0) }
-    }
-    
-    private func toggleHabit(_ habit: HabitItem) {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
+    private func toggleHabit(_ habit: ComputedHabit) {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
             if isCompleted(habit) {
-                habit.completionDates.removeAll { calendar.isDate($0, equalTo: today, toGranularity: .day) }
-                habit.updateStreak()
+                try? EventKitManager.shared.toggleHabitCompletion(habitID: habit.habitID)
                 hapticSound.triggerHapticSelection()
                 hapticSound.playSuccessSound()
             } else {
-                habit.completionDates.append(Date())
-                habit.updateStreak()
+                try? EventKitManager.shared.toggleHabitCompletion(habitID: habit.habitID)
                 hapticSound.triggerHapticSuccess()
                 hapticSound.playCompleteSound()
             }
-            try? modelContext.save(); WidgetCenter.shared.reloadAllTimelines()
+            WidgetCenter.shared.reloadAllTimelines()
         }
     }
 
-    private func handleHabitSwipe(option: SwipeOption, habit: HabitItem) {
+    private func handleHabitSwipe(option: SwipeOption, habit: ComputedHabit) {
             switch option {
             case .edit: editAction(habit)
             case .delete:
-                modelContext.delete(habit)
-                try? modelContext.save()
+                try? EventKitManager.shared.deleteHabit(habitID: habit.habitID)
                 WidgetCenter.shared.reloadAllTimelines()
             case .toggle: toggleHabit(habit)
             case .date: break
@@ -491,7 +459,7 @@ struct HabitSection: View {
 }
 
 struct MiniHeatmapView: View {
-    let habit: HabitItem
+    let habit: ComputedHabit
     let isDarkMode: Bool
     
     // Shows the last 28 days (4 weeks)

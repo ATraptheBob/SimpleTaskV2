@@ -466,15 +466,23 @@ struct MiniHeatmapView: View {
     private let columns = Array(repeating: GridItem(.fixed(16), spacing: 4), count: 7)
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        // PERFORMANCE OPTIMIZATION:
+        // Pre-compute completion dates into a Set of start-of-day dates for O(1) lookups
+        // This avoids O(N*M) time complexity of evaluating Calendar.current.isDate inside the loop
+        let calendar = Calendar.current
+        let today = Date()
+        let completionSet = Set(habit.completionDates.map { calendar.startOfDay(for: $0) })
+
+        return VStack(alignment: .leading, spacing: 8) {
             Text("Consistency Streak: \(habit.streak) days")
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
                 .foregroundColor(isDarkMode ? .gray : .secondary)
             
             LazyVGrid(columns: columns, spacing: 4) {
                 ForEach((0..<28).reversed(), id: \.self) { dayOffset in
-                    let date = Calendar.current.date(byAdding: .day, value: -dayOffset, to: Date())!
-                    let isCompleted = habit.completionDates.contains { Calendar.current.isDate($0, inSameDayAs: date) }
+                    let date = calendar.date(byAdding: .day, value: -dayOffset, to: today)!
+                    let startOfDate = calendar.startOfDay(for: date)
+                    let isCompleted = completionSet.contains(startOfDate)
                     
                     RoundedRectangle(cornerRadius: 3)
                         .fill(isCompleted ? AppTheme.matteAmber : AppTheme.surface(.tertiary, isDark: isDarkMode))
